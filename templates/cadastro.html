@@ -189,6 +189,12 @@ O presente mandato é outorgado de forma gratuita, sem qualquer ônus para o out
       <button type="button" class="modal-close" onclick="fecharModalZapSign()" aria-label="Fechar">×</button>
     </div>
     <iframe id="zapsign-iframe" src="" allow="camera; microphone; geolocation" title="Assinatura digital ZapSign"></iframe>
+    <div class="modal-footer">
+      <span id="zapsign-status-msg">⏳ Aguardando a assinatura ser concluída…</span>
+      <button type="button" id="btn-confirmar-assinatura" class="btn-primary" onclick="verificarAssinaturaManual()">
+        Já assinei — verificar
+      </button>
+    </div>
   </div>
 </div>
 

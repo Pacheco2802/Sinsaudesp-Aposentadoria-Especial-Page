@@ -178,6 +178,7 @@ async function iniciarAssinatura() {
       `https://app.zapsign.com.br/verificar/${signer_token}`;
 
     document.getElementById('zapsign-modal-overlay').classList.add('open');
+    iniciarVerificacaoAssinatura(doc_token);
   } catch (err) {
     alert(`Erro ao criar documento de assinatura: ${err.message}`);
     btn.disabled = false;
@@ -185,7 +186,64 @@ async function iniciarAssinatura() {
   }
 }
 
+let zapSignPollTimer = null;
+
+function iniciarVerificacaoAssinatura(docToken) {
+  pararVerificacaoAssinatura();
+  // Consulta a ZapSign a cada 4s para detectar quando o documento foi assinado
+  zapSignPollTimer = setInterval(() => checarStatusAssinatura(docToken, false), 4000);
+}
+
+function pararVerificacaoAssinatura() {
+  if (zapSignPollTimer) {
+    clearInterval(zapSignPollTimer);
+    zapSignPollTimer = null;
+  }
+}
+
+async function checarStatusAssinatura(docToken, manual) {
+  try {
+    const resp = await fetch(`/api/zapsign/status?doc_token=${encodeURIComponent(docToken)}`);
+    if (!resp.ok) throw new Error('Falha ao consultar status');
+    const { signed } = await resp.json();
+    if (signed) {
+      finalizarAssinatura();
+    } else if (manual) {
+      const msg = document.getElementById('zapsign-status-msg');
+      if (msg) msg.textContent = '⏳ Ainda não detectamos a assinatura. Conclua a assinatura e tente de novo.';
+    }
+  } catch (err) {
+    if (manual) {
+      const msg = document.getElementById('zapsign-status-msg');
+      if (msg) msg.textContent = '⚠️ Não foi possível verificar agora. Tente novamente em instantes.';
+    }
+  }
+}
+
+function verificarAssinaturaManual() {
+  const docToken = document.getElementById('zapsign_doc_token').value;
+  if (!docToken) return;
+  const msg = document.getElementById('zapsign-status-msg');
+  if (msg) msg.textContent = '🔄 Verificando…';
+  checarStatusAssinatura(docToken, true);
+}
+
+function finalizarAssinatura() {
+  pararVerificacaoAssinatura();
+  zapSignDocToken = document.getElementById('zapsign_doc_token').value;
+  document.getElementById('zapsign-modal-overlay').classList.remove('open');
+
+  const confirmEl = document.getElementById('assinatura-confirmada');
+  if (confirmEl) confirmEl.classList.add('show');
+
+  const btn = document.getElementById('btn-iniciar-assinatura');
+  if (btn) { btn.disabled = true; btn.innerHTML = '✓ Documento assinado'; }
+
+  updateSubmitButton();
+}
+
 function fecharModalZapSign() {
+  pararVerificacaoAssinatura();
   document.getElementById('zapsign-modal-overlay').classList.remove('open');
   if (!zapSignDocToken) {
     const btn = document.getElementById('btn-iniciar-assinatura');
@@ -193,6 +251,7 @@ function fecharModalZapSign() {
   }
 }
 
+// Caminho rápido: se a ZapSign enviar o aviso de assinatura concluída, finaliza na hora
 window.addEventListener('message', (e) => {
   if (e.origin !== 'https://app.zapsign.com.br') return;
 
@@ -201,11 +260,7 @@ window.addEventListener('message', (e) => {
     (typeof e.data === 'object' && (e.data?.event === 'zs-doc-signed' || e.data?.type === 'signed'));
 
   if (isSignedEvent) {
-    zapSignDocToken = document.getElementById('zapsign_doc_token').value;
-    fecharModalZapSign();
-    const confirmEl = document.getElementById('assinatura-confirmada');
-    if (confirmEl) confirmEl.classList.add('show');
-    updateSubmitButton();
+    finalizarAssinatura();
   }
 });
 

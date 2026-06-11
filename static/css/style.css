@@ -447,6 +447,18 @@ input.error, select.error { border-color: #c62828; }
   border-bottom: 1px solid var(--cinza-borda);
 }
 .modal-header h3 { font-size: 0.95rem; font-weight: 700; }
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--cinza-borda);
+  background: #fafafa;
+  flex-wrap: wrap;
+}
+.modal-footer #zapsign-status-msg { font-size: 0.85rem; color: var(--cinza-texto); }
+.modal-footer #btn-confirmar-assinatura { font-size: 0.85rem; padding: 8px 16px; white-space: nowrap; }
 .modal-close {
   background: transparent;
   border: none;

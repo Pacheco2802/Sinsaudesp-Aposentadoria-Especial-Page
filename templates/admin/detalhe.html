@@ -106,11 +106,16 @@
         {% if cadastro.zapsign_doc_token %}
         <div class="info-row">
           <span class="info-label">Procuração ZapSign</span>
-          <span class="info-value">
-            <a href="https://app.zapsign.com.br/verificar/{{ cadastro.zapsign_doc_token }}"
+          <span class="info-value" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+            <a href="/admin/cadastro/{{ cadastro.id }}/procuracao"
                target="_blank" class="btn-secondary"
-               style="font-size: 0.78rem; padding: 6px 12px; display: inline-block; margin-top: 4px;">
-              📄 Ver procuração assinada
+               style="font-size: 0.78rem; padding: 6px 12px; display: inline-block;">
+              ⬇ Baixar PDF assinado
+            </a>
+            <a href="https://app.zapsign.com.br/verificar/{{ cadastro.zapsign_doc_token }}"
+               target="_blank" class="btn-outline"
+               style="font-size: 0.78rem; padding: 6px 12px; display: inline-block;">
+              📄 Ver na ZapSign
             </a>
           </span>
         </div>

@@ -40,6 +40,7 @@ from schemas import (
     StatusUpdateIn,
     ZapSignCreateIn,
 )
+from zapsign import consultar_documento as zapsign_consultar
 from zapsign import criar_documento as zapsign_criar
 
 logging.basicConfig(level=logging.INFO)
@@ -221,6 +222,24 @@ async def api_criar_documento(payload: ZapSignCreateIn):
     except Exception as e:
         logger.error("ZapSign create error: %s", e)
         raise HTTPException(status_code=502, detail="Erro ao criar documento na ZapSign. Tente novamente.")
+
+
+@app.get("/api/zapsign/status")
+@limiter.limit("180/hour")
+async def api_zapsign_status(request: Request, doc_token: str):
+    try:
+        info = await zapsign_consultar(doc_token)
+    except Exception as e:
+        logger.error("ZapSign status error: %s", e)
+        raise HTTPException(status_code=502, detail="Erro ao consultar status na ZapSign")
+
+    doc_status = (info.get("status") or "").lower()
+    signers = info.get("signers", [])
+    todos_assinaram = bool(signers) and all(
+        (s.get("status") or "").lower() == "signed" for s in signers
+    )
+    assinado = doc_status == "signed" or todos_assinaram
+    return {"signed": assinado}
 
 
 # ─── File upload ──────────────────────────────────────────────────────────────
@@ -684,6 +703,29 @@ async def admin_detalhe(
         "is_admin": current.papel == "admin",
         "status_opcoes": ["novo", "em_andamento", "concluido"],
     })
+
+
+@app.get("/admin/cadastro/{cadastro_id}/procuracao")
+async def admin_baixar_procuracao(
+    cadastro_id: int,
+    admin_email: str = Depends(get_current_admin),
+    db=Depends(get_db),
+):
+    cadastro = await db.get(Cadastro, cadastro_id)
+    if not cadastro or not cadastro.zapsign_doc_token:
+        raise HTTPException(status_code=404, detail="Procuração não encontrada para este cadastro")
+
+    try:
+        info = await zapsign_consultar(cadastro.zapsign_doc_token)
+    except Exception as e:
+        logger.error("ZapSign consulta error: %s", e)
+        raise HTTPException(status_code=502, detail="Erro ao consultar a procuração na ZapSign")
+
+    pdf_url = info.get("signed_file") or info.get("original_file")
+    if not pdf_url:
+        raise HTTPException(status_code=404, detail="PDF da procuração ainda não disponível")
+
+    return RedirectResponse(url=pdf_url, status_code=302)
 
 
 @app.post("/admin/cadastro/{cadastro_id}/status")

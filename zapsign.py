@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 
 ZAPSIGN_API_TOKEN = os.environ.get("ZAPSIGN_API_TOKEN", "")
 ZAPSIGN_SANDBOX = os.environ.get("ZAPSIGN_SANDBOX", "true").lower() == "true"
+ZAPSIGN_FOLDER_PATH = os.environ.get(
+    "ZAPSIGN_FOLDER_PATH", "/Procurações aposentadoria especial pelo site"
+)
 BASE_URL = "https://api.zapsign.com.br/api/v1"
 
 
@@ -47,6 +50,7 @@ async def criar_documento(nome: str, cpf: str, pdf_bytes: bytes) -> dict:
         "name": f"Procuracao_{cpf_digits}_{data_hoje}",
         "base64_pdf": b64,
         "lang": "pt-br",
+        "folder_path": ZAPSIGN_FOLDER_PATH,
         "signers": [
             {
                 "name": nome,
