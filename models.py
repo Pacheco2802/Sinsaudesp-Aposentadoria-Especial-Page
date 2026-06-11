@@ -57,4 +57,6 @@ class AdminUsuario(Base):
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     senha_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    # "admin" = acesso total (gerencia usuários) | "juridico" = gerencia cadastros
+    papel: Mapped[str] = mapped_column(String(20), nullable=False, server_default="juridico")
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())

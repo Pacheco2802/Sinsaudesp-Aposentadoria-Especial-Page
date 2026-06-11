@@ -53,6 +53,11 @@
                style="padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem;">
         <input type="password" name="senha" placeholder="Senha (mínimo 8 caracteres)" minlength="8" required
                style="padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem;">
+        <select name="papel"
+                style="padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem;">
+          <option value="juridico">Jurídico — gerencia cadastros</option>
+          <option value="admin">Administrador — acesso total (gerencia usuários)</option>
+        </select>
         <button type="submit" class="btn-secondary" style="align-self: flex-start;">Criar usuário</button>
       </form>
     </div>
@@ -64,6 +69,7 @@
           <tr>
             <th>Nome</th>
             <th>E-mail</th>
+            <th>Papel</th>
             <th>Criado em</th>
             <th>Ações</th>
           </tr>
@@ -73,6 +79,13 @@
           <tr>
             <td><strong>{{ u.nome }}</strong></td>
             <td>{{ u.email }}</td>
+            <td>
+              {% if u.papel == 'admin' %}
+              <span style="background: #E3F2FD; color: #1565C0; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">Administrador</span>
+              {% else %}
+              <span style="background: #F1F8E9; color: #2E7D32; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">Jurídico</span>
+              {% endif %}
+            </td>
             <td style="white-space: nowrap; font-size: 0.82rem; color: var(--cinza-texto);">
               {{ u.created_at.strftime('%d/%m/%Y') }}
             </td>

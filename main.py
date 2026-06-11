@@ -20,7 +20,7 @@ from fastapi.templating import Jinja2Templates
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -88,10 +88,15 @@ async def seed_admin() -> None:
                 nome="Administrador",
                 email=ADMIN_INITIAL_EMAIL,
                 senha_hash=hash_password(ADMIN_INITIAL_PASSWORD),
+                papel="admin",
             )
             db.add(admin)
             await db.commit()
             logger.info("Admin user seeded: %s", ADMIN_INITIAL_EMAIL)
+        elif existing.papel != "admin":
+            existing.papel = "admin"
+            await db.commit()
+            logger.info("Admin user promoted to admin: %s", ADMIN_INITIAL_EMAIL)
 
 
 async def cleanup_temp_files() -> None:
@@ -119,6 +124,11 @@ async def lifespan(app: FastAPI):
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migração: garante a coluna 'papel' em bancos criados antes desse campo existir
+        await conn.execute(text(
+            "ALTER TABLE admin_usuarios ADD COLUMN IF NOT EXISTS papel "
+            "VARCHAR(20) NOT NULL DEFAULT 'juridico'"
+        ))
     logger.info("Database tables created/verified")
 
     await seed_admin()
@@ -158,6 +168,22 @@ def detect_magic(header: bytes) -> bool:
         if header.startswith(magic):
             return True
     return False
+
+
+async def get_current_admin_obj(request: Request, db=Depends(get_db)) -> AdminUsuario:
+    """Carrega o usuário logado do banco (com papel)."""
+    email = await get_current_admin(request)
+    user = await db.scalar(select(AdminUsuario).where(AdminUsuario.email == email))
+    if not user:
+        raise HTTPException(status_code=302, headers={"Location": "/admin/login"})
+    return user
+
+
+async def require_admin_role(user: AdminUsuario = Depends(get_current_admin_obj)) -> AdminUsuario:
+    """Permite acesso apenas a usuários com papel 'admin'."""
+    if user.papel != "admin":
+        raise HTTPException(status_code=403, detail="Acesso restrito a administradores")
+    return user
 
 
 # ─── Public pages ─────────────────────────────────────────────────────────────
@@ -493,14 +519,15 @@ async def admin_usuarios(
     request: Request,
     msg: Optional[str] = None,
     erro: Optional[str] = None,
-    admin_email: str = Depends(get_current_admin),
+    current=Depends(require_admin_role),
     db=Depends(get_db),
 ):
     result = await db.execute(select(AdminUsuario).order_by(AdminUsuario.created_at.asc()))
     usuarios = result.scalars().all()
     return templates.TemplateResponse(request, "admin/usuarios.html", {
         "usuarios": usuarios,
-        "admin_email": admin_email,
+        "admin_email": current.email,
+        "is_admin": True,
         "msg": msg,
         "erro": erro,
     })
@@ -512,11 +539,13 @@ async def admin_criar_usuario(
     nome: str = Form(...),
     email: str = Form(...),
     senha: str = Form(...),
-    admin_email: str = Depends(get_current_admin),
+    papel: str = Form("juridico"),
+    current=Depends(require_admin_role),
     db=Depends(get_db),
 ):
     nome = nome.strip()
     email = email.strip().lower()
+    papel = papel if papel in ("admin", "juridico") else "juridico"
 
     if not nome or not email or len(senha) < 8:
         return RedirectResponse(
@@ -531,7 +560,7 @@ async def admin_criar_usuario(
             status_code=302,
         )
 
-    novo = AdminUsuario(nome=nome, email=email, senha_hash=hash_password(senha))
+    novo = AdminUsuario(nome=nome, email=email, senha_hash=hash_password(senha), papel=papel)
     db.add(novo)
     await db.commit()
     return RedirectResponse(url="/admin/usuarios?msg=Usu%C3%A1rio+criado+com+sucesso", status_code=302)
@@ -540,14 +569,14 @@ async def admin_criar_usuario(
 @app.post("/admin/usuarios/{usuario_id}/excluir")
 async def admin_excluir_usuario(
     usuario_id: int,
-    admin_email: str = Depends(get_current_admin),
+    current=Depends(require_admin_role),
     db=Depends(get_db),
 ):
     alvo = await db.get(AdminUsuario, usuario_id)
     if not alvo:
         return RedirectResponse(url="/admin/usuarios?erro=Usu%C3%A1rio+n%C3%A3o+encontrado", status_code=302)
 
-    if alvo.email == admin_email:
+    if alvo.email == current.email:
         return RedirectResponse(
             url="/admin/usuarios?erro=Voc%C3%AA+n%C3%A3o+pode+excluir+o+pr%C3%B3prio+usu%C3%A1rio",
             status_code=302,
@@ -574,9 +603,10 @@ async def admin_dashboard(
     filiado: Optional[str] = None,
     q: Optional[str] = None,
     page: int = 1,
-    admin_email: str = Depends(get_current_admin),
+    current=Depends(get_current_admin_obj),
     db=Depends(get_db),
 ):
+    admin_email = current.email
     page = max(1, page)
     per_page = 20
 
@@ -628,6 +658,7 @@ async def admin_dashboard(
         "pages": pages,
         "filters": {"status": status or "", "filiado": filiado or "", "q": q or ""},
         "admin_email": admin_email,
+        "is_admin": current.papel == "admin",
     })
 
 
@@ -635,7 +666,7 @@ async def admin_dashboard(
 async def admin_detalhe(
     request: Request,
     cadastro_id: int,
-    admin_email: str = Depends(get_current_admin),
+    current=Depends(get_current_admin_obj),
     db=Depends(get_db),
 ):
     result = await db.execute(
@@ -649,7 +680,8 @@ async def admin_detalhe(
 
     return templates.TemplateResponse(request, "admin/detalhe.html", {
         "cadastro": cadastro,
-        "admin_email": admin_email,
+        "admin_email": current.email,
+        "is_admin": current.papel == "admin",
         "status_opcoes": ["novo", "em_andamento", "concluido"],
     })
 
