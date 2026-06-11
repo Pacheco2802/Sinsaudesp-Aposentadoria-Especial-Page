@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — SinSaúdeSP</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div class="admin-login-page">
+  <div class="admin-login-card">
+    <div class="logo" style="justify-content: center;">
+      <svg class="logo-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 2L4 8v10c0 9 6.2 16 14 18 7.8-2 14-9 14-18V8L18 2z" fill="#2E7D32"/>
+        <path d="M16 11h4v5h5v4h-5v5h-4v-5h-5v-4h5v-5z" fill="white"/>
+      </svg>
+      <span class="logo-text">
+        <span class="sin">Sin</span><span class="saude">Saúde</span><span class="sp">SP</span>
+      </span>
+    </div>
+
+    <h1>Painel Administrativo</h1>
+
+    {% if erro %}
+    <div class="alert-error">{{ erro }}</div>
+    {% endif %}
+
+    <form method="POST" action="/admin/login">
+      <div class="field-group" style="text-align: left;">
+        <label for="email">E-mail</label>
+        <input type="email" id="email" name="email" required autofocus autocomplete="username"
+               placeholder="admin@sinsaudesp.org.br">
+      </div>
+      <div class="field-group" style="text-align: left; margin-bottom: 24px;">
+        <label for="senha">Senha</label>
+        <input type="password" id="senha" name="senha" required autocomplete="current-password"
+               placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn-submit-main" style="opacity: 1;">Entrar</button>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>

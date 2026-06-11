@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — SinSaúdeSP Admin</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div class="admin-layout">
+
+  <header class="admin-header">
+    <div class="logo">
+      <svg class="logo-icon" viewBox="0 0 36 36" fill="none">
+        <path d="M18 2L4 8v10c0 9 6.2 16 14 18 7.8-2 14-9 14-18V8L18 2z" fill="#388E3C"/>
+        <path d="M16 11h4v5h5v4h-5v5h-4v-5h-5v-4h5v-5z" fill="white"/>
+      </svg>
+      <span class="logo-text">
+        <span class="sin">Sin</span><span class="saude">Saúde</span><span class="sp">SP</span>
+      </span>
+    </div>
+    <nav class="admin-nav">
+      <span style="color: #aaa; font-size: 0.8rem;">{{ admin_email }}</span>
+      <a href="/admin/logout">Sair</a>
+    </nav>
+  </header>
+
+  <main class="admin-main">
+
+    <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 20px;">Cadastros — Aposentadoria Especial</h2>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <span class="stat-number">{{ stats.total }}</span>
+        <span class="stat-label">Total</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number" style="color: #1565C0;">{{ stats.novo }}</span>
+        <span class="stat-label">Novos</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number" style="color: #F57F17;">{{ stats.em_andamento }}</span>
+        <span class="stat-label">Em andamento</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number" style="color: #2E7D32;">{{ stats.concluido }}</span>
+        <span class="stat-label">Concluídos</span>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <form class="filter-bar" method="GET" action="/admin">
+      <select name="status">
+        <option value="">Todos os status</option>
+        <option value="novo" {% if filters.status == 'novo' %}selected{% endif %}>🟡 Novo</option>
+        <option value="em_andamento" {% if filters.status == 'em_andamento' %}selected{% endif %}>🔵 Em andamento</option>
+        <option value="concluido" {% if filters.status == 'concluido' %}selected{% endif %}>🟢 Concluído</option>
+      </select>
+      <select name="filiado">
+        <option value="">Todos (filiação)</option>
+        <option value="sim" {% if filters.filiado == 'sim' %}selected{% endif %}>Filiados</option>
+        <option value="nao" {% if filters.filiado == 'nao' %}selected{% endif %}>Não filiados</option>
+      </select>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Buscar por nome ou CPF…">
+      <button type="submit" class="btn-secondary">Filtrar</button>
+      {% if filters.status or filters.filiado or filters.q %}
+      <a href="/admin" class="btn-outline">Limpar</a>
+      {% endif %}
+    </form>
+
+    <!-- Table -->
+    {% if cadastros %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Nome</th>
+            <th>CPF</th>
+            <th>Hospital</th>
+            <th>Cargo</th>
+            <th>Filiado</th>
+            <th>Data</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in cadastros %}
+          <tr>
+            <td style="color: var(--cinza-texto); font-size: 0.8rem;">{{ c.id }}</td>
+            <td><strong>{{ c.nome_completo }}</strong></td>
+            <td style="font-family: monospace; font-size: 0.85rem;">{{ c.cpf }}</td>
+            <td>{{ c.hospital }}</td>
+            <td>{{ c.cargo }}</td>
+            <td>
+              {% if c.filiado %}
+              <span style="color: var(--verde-principal); font-weight: 600;">Sim</span>
+              {% else %}
+              <span style="color: var(--cinza-texto);">Não</span>
+              {% endif %}
+            </td>
+            <td style="white-space: nowrap; font-size: 0.82rem; color: var(--cinza-texto);">
+              {{ c.created_at.strftime('%d/%m/%Y') }}
+            </td>
+            <td>
+              <span class="badge badge-{{ c.status }}">
+                {{ c.status.replace('_', ' ') }}
+              </span>
+            </td>
+            <td>
+              <a href="/admin/cadastro/{{ c.id }}" class="btn-secondary" style="font-size: 0.78rem; padding: 6px 12px;">
+                Ver
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+      <a href="?page={{ page - 1 }}&status={{ filters.status }}&filiado={{ filters.filiado }}&q={{ filters.q }}">← Anterior</a>
+      {% endif %}
+      <span class="current">{{ page }} / {{ pages }}</span>
+      {% if page < pages %}
+      <a href="?page={{ page + 1 }}&status={{ filters.status }}&filiado={{ filters.filiado }}&q={{ filters.q }}">Próxima →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+      <p style="font-size: 2rem; margin-bottom: 12px;">📋</p>
+      <p>Nenhum cadastro encontrado{% if filters.status or filters.q %} com os filtros aplicados{% endif %}.</p>
+    </div>
+    {% endif %}
+
+  </main>
+</div>
+
+</body>
+</html>

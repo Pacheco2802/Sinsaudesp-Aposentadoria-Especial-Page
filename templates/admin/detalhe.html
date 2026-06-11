@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro #{{ '%06d' % cadastro.id }} — SinSaúdeSP Admin</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div class="admin-layout">
+
+  <header class="admin-header">
+    <div class="logo">
+      <svg class="logo-icon" viewBox="0 0 36 36" fill="none">
+        <path d="M18 2L4 8v10c0 9 6.2 16 14 18 7.8-2 14-9 14-18V8L18 2z" fill="#388E3C"/>
+        <path d="M16 11h4v5h5v4h-5v5h-4v-5h-5v-4h5v-5z" fill="white"/>
+      </svg>
+      <span class="logo-text">
+        <span class="sin">Sin</span><span class="saude">Saúde</span><span class="sp">SP</span>
+      </span>
+    </div>
+    <nav class="admin-nav">
+      <span style="color: #aaa; font-size: 0.8rem;">{{ admin_email }}</span>
+      <a href="/admin/logout">Sair</a>
+    </nav>
+  </header>
+
+  <main class="admin-main">
+
+    <a href="/admin" class="admin-back">← Voltar ao dashboard</a>
+
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 24px; flex-wrap: wrap;">
+      <h2 style="font-size: 1.3rem; font-weight: 700;">
+        {{ cadastro.nome_completo }}
+      </h2>
+      <span class="badge badge-{{ cadastro.status }}" id="status-badge">
+        {{ cadastro.status.replace('_', ' ') }}
+      </span>
+      <span style="font-size: 0.82rem; color: var(--cinza-texto);">
+        Protocolo #{{ '%06d' % cadastro.id }}
+      </span>
+    </div>
+
+    <div class="detail-grid">
+
+      <!-- Dados pessoais -->
+      <div class="detail-card">
+        <h3>👤 Dados Pessoais</h3>
+        <div class="info-row">
+          <span class="info-label">Nome completo</span>
+          <span class="info-value">{{ cadastro.nome_completo }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">CPF</span>
+          <span class="info-value" style="font-family: monospace;">{{ cadastro.cpf }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Telefone / WhatsApp</span>
+          <span class="info-value">
+            <a href="https://wa.me/55{{ cadastro.telefone | replace('(','') | replace(')','') | replace(' ','') | replace('-','') }}"
+               target="_blank" style="color: var(--verde-principal);">
+              {{ cadastro.telefone }}
+            </a>
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">E-mail</span>
+          <span class="info-value">
+            <a href="mailto:{{ cadastro.email }}" style="color: var(--verde-principal);">{{ cadastro.email }}</a>
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Filiado ao SinSaúdeSP</span>
+          <span class="info-value">
+            {% if cadastro.filiado %}
+            <strong style="color: var(--verde-principal);">Sim</strong>
+            {% else %}
+            <span style="color: var(--cinza-texto);">Não</span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Cadastrado em</span>
+          <span class="info-value">{{ cadastro.created_at.strftime('%d/%m/%Y às %H:%M') }}</span>
+        </div>
+        {% if cadastro.ip_cadastro %}
+        <div class="info-row">
+          <span class="info-label">IP do cadastro</span>
+          <span class="info-value" style="font-family: monospace; font-size: 0.85rem;">{{ cadastro.ip_cadastro }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Dados profissionais -->
+      <div class="detail-card">
+        <h3>🏥 Dados Profissionais</h3>
+        <div class="info-row">
+          <span class="info-label">Hospital / Empresa</span>
+          <span class="info-value">{{ cadastro.hospital }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Cargo / Função</span>
+          <span class="info-value">{{ cadastro.cargo }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Tempo de serviço</span>
+          <span class="info-value">{{ cadastro.tempo_servico }}</span>
+        </div>
+        {% if cadastro.zapsign_doc_token %}
+        <div class="info-row">
+          <span class="info-label">Procuração ZapSign</span>
+          <span class="info-value">
+            <a href="https://app.zapsign.com.br/verificar/{{ cadastro.zapsign_doc_token }}"
+               target="_blank" class="btn-secondary"
+               style="font-size: 0.78rem; padding: 6px 12px; display: inline-block; margin-top: 4px;">
+              📄 Ver procuração assinada
+            </a>
+          </span>
+        </div>
+        {% else %}
+        <div class="info-row">
+          <span class="info-label">Procuração</span>
+          <span class="info-value" style="color: var(--cinza-texto);">Não assinada</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Status e ações -->
+      <div class="detail-card">
+        <h3>⚙️ Gerenciar Status</h3>
+        <div class="field-group">
+          <label for="select-status">Status atual</label>
+          <select id="select-status" onchange="updateStatus({{ cadastro.id }}, this)">
+            {% for s in status_opcoes %}
+            <option value="{{ s }}" {% if s == cadastro.status %}selected{% endif %}>
+              {{ s.replace('_', ' ').title() }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <p style="font-size: 0.78rem; color: var(--cinza-texto); margin-top: 4px;">
+          O status é atualizado automaticamente ao selecionar.
+        </p>
+      </div>
+
+      <!-- Nota interna -->
+      <div class="detail-card">
+        <h3>📝 Nota interna</h3>
+        <div class="field-group">
+          <textarea id="nota-input" class="nota-input" placeholder="Adicione observações internas sobre este caso…">{{ cadastro.nota_interna or '' }}</textarea>
+        </div>
+        <button type="button" class="btn-secondary" onclick="saveNota({{ cadastro.id }})">
+          Salvar nota
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Documentos -->
+    <div class="detail-card" style="margin-top: 20px;">
+      <h3>📎 Documentos enviados</h3>
+      {% if cadastro.documentos %}
+        {% for doc in cadastro.documentos %}
+        <div class="doc-item">
+          <span class="doc-tipo">{{ doc.tipo }}</span>
+          <span class="doc-nome">{{ doc.nome_arquivo }}</span>
+          {% if doc.tamanho_bytes %}
+          <span class="doc-size">{{ "%.1f" % (doc.tamanho_bytes / 1024) }} KB</span>
+          {% endif %}
+          <a href="/admin/documentos/{{ doc.id }}" class="btn-secondary"
+             style="font-size: 0.78rem; padding: 5px 12px;">
+            ⬇ Baixar
+          </a>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p style="color: var(--cinza-texto); font-size: 0.9rem;">Nenhum documento enviado.</p>
+      {% endif %}
+    </div>
+
+  </main>
+</div>
+
+<script src="/static/js/main.js"></script>
+</body>
+</html>
