@@ -486,6 +486,85 @@ async def admin_logout():
     return response
 
 
+# ─── Admin: gerenciamento de usuários ─────────────────────────────────────────
+
+@app.get("/admin/usuarios", response_class=HTMLResponse)
+async def admin_usuarios(
+    request: Request,
+    msg: Optional[str] = None,
+    erro: Optional[str] = None,
+    admin_email: str = Depends(get_current_admin),
+    db=Depends(get_db),
+):
+    result = await db.execute(select(AdminUsuario).order_by(AdminUsuario.created_at.asc()))
+    usuarios = result.scalars().all()
+    return templates.TemplateResponse(request, "admin/usuarios.html", {
+        "usuarios": usuarios,
+        "admin_email": admin_email,
+        "msg": msg,
+        "erro": erro,
+    })
+
+
+@app.post("/admin/usuarios")
+async def admin_criar_usuario(
+    request: Request,
+    nome: str = Form(...),
+    email: str = Form(...),
+    senha: str = Form(...),
+    admin_email: str = Depends(get_current_admin),
+    db=Depends(get_db),
+):
+    nome = nome.strip()
+    email = email.strip().lower()
+
+    if not nome or not email or len(senha) < 8:
+        return RedirectResponse(
+            url="/admin/usuarios?erro=Preencha+todos+os+campos+(senha+m%C3%ADnimo+8+caracteres)",
+            status_code=302,
+        )
+
+    existing = await db.scalar(select(AdminUsuario).where(AdminUsuario.email == email))
+    if existing:
+        return RedirectResponse(
+            url="/admin/usuarios?erro=J%C3%A1+existe+um+usu%C3%A1rio+com+esse+e-mail",
+            status_code=302,
+        )
+
+    novo = AdminUsuario(nome=nome, email=email, senha_hash=hash_password(senha))
+    db.add(novo)
+    await db.commit()
+    return RedirectResponse(url="/admin/usuarios?msg=Usu%C3%A1rio+criado+com+sucesso", status_code=302)
+
+
+@app.post("/admin/usuarios/{usuario_id}/excluir")
+async def admin_excluir_usuario(
+    usuario_id: int,
+    admin_email: str = Depends(get_current_admin),
+    db=Depends(get_db),
+):
+    alvo = await db.get(AdminUsuario, usuario_id)
+    if not alvo:
+        return RedirectResponse(url="/admin/usuarios?erro=Usu%C3%A1rio+n%C3%A3o+encontrado", status_code=302)
+
+    if alvo.email == admin_email:
+        return RedirectResponse(
+            url="/admin/usuarios?erro=Voc%C3%AA+n%C3%A3o+pode+excluir+o+pr%C3%B3prio+usu%C3%A1rio",
+            status_code=302,
+        )
+
+    total = await db.scalar(select(func.count(AdminUsuario.id)))
+    if total <= 1:
+        return RedirectResponse(
+            url="/admin/usuarios?erro=N%C3%A3o+%C3%A9+poss%C3%ADvel+excluir+o+%C3%BAnico+usu%C3%A1rio",
+            status_code=302,
+        )
+
+    await db.delete(alvo)
+    await db.commit()
+    return RedirectResponse(url="/admin/usuarios?msg=Usu%C3%A1rio+exclu%C3%ADdo", status_code=302)
+
+
 # ─── Admin dashboard ──────────────────────────────────────────────────────────
 
 @app.get("/admin", response_class=HTMLResponse)

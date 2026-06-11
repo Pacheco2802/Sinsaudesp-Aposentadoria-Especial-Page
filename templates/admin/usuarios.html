@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usuários — SinSaúdeSP Admin</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div class="admin-layout">
+
+  <header class="admin-header">
+    <div class="logo">
+      <svg class="logo-icon" viewBox="0 0 36 36" fill="none">
+        <path d="M18 2L4 8v10c0 9 6.2 16 14 18 7.8-2 14-9 14-18V8L18 2z" fill="#388E3C"/>
+        <path d="M16 11h4v5h5v4h-5v5h-4v-5h-5v-4h5v-5z" fill="white"/>
+      </svg>
+      <span class="logo-text">
+        <span class="sin">Sin</span><span class="saude">Saúde</span><span class="sp">SP</span>
+      </span>
+    </div>
+    <nav class="admin-nav">
+      <a href="/admin">Cadastros</a>
+      <a href="/admin/usuarios">Usuários</a>
+      <span style="color: #aaa; font-size: 0.8rem;">{{ admin_email }}</span>
+      <a href="/admin/logout">Sair</a>
+    </nav>
+  </header>
+
+  <main class="admin-main">
+
+    <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 20px;">Usuários do painel</h2>
+
+    {% if msg %}
+    <div style="background: #E8F5E9; color: #2E7D32; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem;">
+      {{ msg }}
+    </div>
+    {% endif %}
+    {% if erro %}
+    <div style="background: #FFEBEE; color: #C62828; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem;">
+      {{ erro }}
+    </div>
+    {% endif %}
+
+    <!-- Formulário de novo usuário -->
+    <div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px; margin-bottom: 28px; max-width: 560px;">
+      <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 14px;">Adicionar novo usuário</h3>
+      <form method="POST" action="/admin/usuarios" style="display: flex; flex-direction: column; gap: 12px;">
+        <input type="text" name="nome" placeholder="Nome completo" required
+               style="padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem;">
+        <input type="email" name="email" placeholder="E-mail" required
+               style="padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem;">
+        <input type="password" name="senha" placeholder="Senha (mínimo 8 caracteres)" minlength="8" required
+               style="padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem;">
+        <button type="submit" class="btn-secondary" style="align-self: flex-start;">Criar usuário</button>
+      </form>
+    </div>
+
+    <!-- Lista de usuários -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>E-mail</th>
+            <th>Criado em</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in usuarios %}
+          <tr>
+            <td><strong>{{ u.nome }}</strong></td>
+            <td>{{ u.email }}</td>
+            <td style="white-space: nowrap; font-size: 0.82rem; color: var(--cinza-texto);">
+              {{ u.created_at.strftime('%d/%m/%Y') }}
+            </td>
+            <td>
+              {% if u.email == admin_email %}
+              <span style="color: var(--cinza-texto); font-size: 0.78rem;">(você)</span>
+              {% else %}
+              <form method="POST" action="/admin/usuarios/{{ u.id }}/excluir"
+                    onsubmit="return confirm('Excluir o usuário {{ u.nome }}?');" style="display: inline;">
+                <button type="submit" class="btn-outline"
+                        style="font-size: 0.78rem; padding: 6px 12px; color: #C62828; border-color: #C62828;">
+                  Excluir
+                </button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>
