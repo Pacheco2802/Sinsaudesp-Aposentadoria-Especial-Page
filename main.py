@@ -10,8 +10,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+import boto3
+from botocore.exceptions import ClientError
+
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -45,6 +48,19 @@ logger = logging.getLogger(__name__)
 STORAGE_ROOT = Path(os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "./storage"))
 TEMP_DIR = STORAGE_ROOT / "temp"
 DOCS_DIR = STORAGE_ROOT / "documentos"
+
+S3_BUCKET = os.environ.get("AWS_S3_BUCKET_NAME", "")
+USE_S3 = bool(S3_BUCKET)
+
+
+def _s3():
+    return boto3.client(
+        "s3",
+        endpoint_url=os.environ.get("AWS_ENDPOINT_URL") or None,
+        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", ""),
+        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", ""),
+        region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
+    )
 
 JWT_SECRET = os.environ.get("JWT_SECRET", "")
 ADMIN_INITIAL_EMAIL = os.environ.get("ADMIN_INITIAL_EMAIL", "admin@sinsaudesp.org.br")
@@ -212,20 +228,29 @@ async def api_upload(
     if ext not in (".pdf", ".jpg", ".jpeg", ".png"):
         ext = ".bin"
 
-    session_dir = safe_file_path(TEMP_DIR, session_id)
-    session_dir.mkdir(parents=True, exist_ok=True)
-
     file_uuid = str(uuid.uuid4())
     filename = f"{file_uuid}{ext}"
-    dest = session_dir / filename
-    dest.write_bytes(content)
+    meta = json.dumps({"tipo": tipo, "nome_original": file.filename or filename})
 
-    # Persist tipo + original name in a sidecar so the submit endpoint can recover them
-    meta_path = session_dir / f"{file_uuid}.meta.json"
-    meta_path.write_text(
-        json.dumps({"tipo": tipo, "nome_original": file.filename or filename}),
-        encoding="utf-8",
-    )
+    if USE_S3:
+        s3 = _s3()
+        await asyncio.to_thread(
+            s3.put_object,
+            Bucket=S3_BUCKET,
+            Key=f"temp/{session_id}/{filename}",
+            Body=content,
+        )
+        await asyncio.to_thread(
+            s3.put_object,
+            Bucket=S3_BUCKET,
+            Key=f"temp/{session_id}/{file_uuid}.meta.json",
+            Body=meta.encode(),
+        )
+    else:
+        session_dir = safe_file_path(TEMP_DIR, session_id)
+        session_dir.mkdir(parents=True, exist_ok=True)
+        (session_dir / filename).write_bytes(content)
+        (session_dir / f"{file_uuid}.meta.json").write_text(meta, encoding="utf-8")
 
     return {
         "file_id": file_uuid,
@@ -285,13 +310,26 @@ async def api_cadastro(
         raise HTTPException(status_code=422, detail=str(e))
 
     # List uploaded temp files
-    session_dir = TEMP_DIR / session_id
-    if not session_dir.exists():
-        raise HTTPException(status_code=400, detail="Nenhum documento enviado. Faça o upload dos documentos antes de enviar.")
-
-    temp_files = list(session_dir.iterdir())
-    if not temp_files:
-        raise HTTPException(status_code=400, detail="Nenhum documento encontrado. Envie ao menos um documento.")
+    if USE_S3:
+        s3 = _s3()
+        resp = await asyncio.to_thread(
+            s3.list_objects_v2,
+            Bucket=S3_BUCKET,
+            Prefix=f"temp/{session_id}/",
+        )
+        all_objects = resp.get("Contents", [])
+        temp_files_s3 = [o for o in all_objects if not o["Key"].endswith(".meta.json")]
+        if not all_objects:
+            raise HTTPException(status_code=400, detail="Nenhum documento enviado. Faça o upload dos documentos antes de enviar.")
+        if not temp_files_s3:
+            raise HTTPException(status_code=400, detail="Nenhum documento encontrado. Envie ao menos um documento.")
+    else:
+        session_dir = TEMP_DIR / session_id
+        if not session_dir.exists():
+            raise HTTPException(status_code=400, detail="Nenhum documento enviado. Faça o upload dos documentos antes de enviar.")
+        temp_files = [f for f in session_dir.iterdir() if f.is_file() and f.suffix != ".json"]
+        if not temp_files:
+            raise HTTPException(status_code=400, detail="Nenhum documento encontrado. Envie ao menos um documento.")
 
     ip = get_client_ip(request)
     user_agent = request.headers.get("User-Agent", "")
@@ -319,45 +357,82 @@ async def api_cadastro(
         raise HTTPException(status_code=409, detail="CPF já cadastrado no sistema.")
 
     cadastro_id = cadastro.id
-    dest_dir = DOCS_DIR / str(cadastro_id)
-    dest_dir.mkdir(parents=True, exist_ok=True)
 
-    for temp_file in temp_files:
-        if not temp_file.is_file() or temp_file.suffix == ".json":
-            continue
-
-        # Read tipo + original name from sidecar
-        file_uuid_str = temp_file.stem
-        meta_path = session_dir / f"{file_uuid_str}.meta.json"
-        tipo_doc = "Outro"
-        nome_original = temp_file.name
-        if meta_path.exists():
+    if USE_S3:
+        for obj in temp_files_s3:
+            key = obj["Key"]
+            filename = Path(key).name
+            file_uuid_str = Path(key).stem
+            tipo_doc = "Outro"
+            nome_original = filename
             try:
-                meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                tipo_doc = meta.get("tipo", "Outro")
-                nome_original = meta.get("nome_original", temp_file.name)
-            except Exception:
+                meta_obj = await asyncio.to_thread(
+                    s3.get_object,
+                    Bucket=S3_BUCKET,
+                    Key=f"temp/{session_id}/{file_uuid_str}.meta.json",
+                )
+                meta_data = json.loads(meta_obj["Body"].read())
+                tipo_doc = meta_data.get("tipo", "Outro")
+                nome_original = meta_data.get("nome_original", filename)
+            except ClientError:
                 pass
 
-        dest_path = dest_dir / temp_file.name
-        shutil.move(str(temp_file), str(dest_path))
+            new_key = f"documentos/{cadastro_id}/{filename}"
+            await asyncio.to_thread(
+                s3.copy_object,
+                Bucket=S3_BUCKET,
+                CopySource={"Bucket": S3_BUCKET, "Key": key},
+                Key=new_key,
+            )
+            await asyncio.to_thread(s3.delete_object, Bucket=S3_BUCKET, Key=key)
 
-        doc = Documento(
-            cadastro_id=cadastro_id,
-            tipo=tipo_doc,
-            nome_arquivo=nome_original,
-            caminho_arquivo=temp_file.name,
-            tamanho_bytes=dest_path.stat().st_size,
-        )
-        db.add(doc)
+            head = await asyncio.to_thread(s3.head_object, Bucket=S3_BUCKET, Key=new_key)
+            doc = Documento(
+                cadastro_id=cadastro_id,
+                tipo=tipo_doc,
+                nome_arquivo=nome_original,
+                caminho_arquivo=filename,
+                tamanho_bytes=head["ContentLength"],
+            )
+            db.add(doc)
+
+        for obj in all_objects:
+            if obj["Key"].endswith(".meta.json"):
+                await asyncio.to_thread(s3.delete_object, Bucket=S3_BUCKET, Key=obj["Key"])
+    else:
+        dest_dir = DOCS_DIR / str(cadastro_id)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        for temp_file in temp_files:
+            file_uuid_str = temp_file.stem
+            meta_path = session_dir / f"{file_uuid_str}.meta.json"
+            tipo_doc = "Outro"
+            nome_original = temp_file.name
+            if meta_path.exists():
+                try:
+                    meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
+                    tipo_doc = meta_data.get("tipo", "Outro")
+                    nome_original = meta_data.get("nome_original", temp_file.name)
+                except Exception:
+                    pass
+
+            dest_path = dest_dir / temp_file.name
+            shutil.move(str(temp_file), str(dest_path))
+            doc = Documento(
+                cadastro_id=cadastro_id,
+                tipo=tipo_doc,
+                nome_arquivo=nome_original,
+                caminho_arquivo=temp_file.name,
+                tamanho_bytes=dest_path.stat().st_size,
+            )
+            db.add(doc)
+
+        try:
+            session_dir.rmdir()
+        except OSError:
+            pass
 
     await db.commit()
-
-    # Cleanup empty temp dir
-    try:
-        session_dir.rmdir()
-    except OSError:
-        pass
 
     asyncio.create_task(
         send_confirmation_email(str(data.email), data.nome_completo, cadastro_id)
@@ -563,11 +638,23 @@ async def admin_download_documento(
     if not doc:
         raise HTTPException(status_code=404, detail="Documento não encontrado")
 
-    file_path = safe_file_path(DOCS_DIR, str(doc.cadastro_id), doc.caminho_arquivo)
+    if USE_S3:
+        s3 = _s3()
+        s3_key = f"documentos/{doc.cadastro_id}/{doc.caminho_arquivo}"
+        try:
+            obj = await asyncio.to_thread(s3.get_object, Bucket=S3_BUCKET, Key=s3_key)
+            content = await asyncio.to_thread(obj["Body"].read)
+        except ClientError:
+            raise HTTPException(status_code=404, detail="Arquivo não encontrado no storage")
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{doc.nome_arquivo}"'},
+        )
 
+    file_path = safe_file_path(DOCS_DIR, str(doc.cadastro_id), doc.caminho_arquivo)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Arquivo não encontrado no storage")
-
     return FileResponse(
         path=str(file_path),
         filename=doc.nome_arquivo,
