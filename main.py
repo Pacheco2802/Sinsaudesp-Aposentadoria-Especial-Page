@@ -164,14 +164,13 @@ def detect_magic(header: bytes) -> bool:
 
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
-    return templates.TemplateResponse("landing.html", {"request": request})
+    return templates.TemplateResponse(request, "landing.html")
 
 
 @app.get("/cadastro", response_class=HTMLResponse)
 async def cadastro_page(request: Request):
     csrf_token = secrets.token_hex(32)
-    response = templates.TemplateResponse("cadastro.html", {
-        "request": request,
+    response = templates.TemplateResponse(request, "cadastro.html", {
         "csrf_token": csrf_token,
     })
     response.set_cookie("csrf_token", csrf_token, samesite="lax", httponly=False, max_age=3600)
@@ -180,8 +179,7 @@ async def cadastro_page(request: Request):
 
 @app.get("/obrigado", response_class=HTMLResponse)
 async def obrigado(request: Request, protocolo: Optional[str] = None):
-    return templates.TemplateResponse("obrigado.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "obrigado.html", {
         "protocolo": protocolo or "000000",
     })
 
@@ -450,7 +448,7 @@ async def api_cadastro(
 
 @app.get("/admin/login", response_class=HTMLResponse)
 async def admin_login_page(request: Request):
-    return templates.TemplateResponse("admin/login.html", {"request": request, "erro": None})
+    return templates.TemplateResponse(request, "admin/login.html", {"erro": None})
 
 
 @app.post("/admin/login")
@@ -463,8 +461,9 @@ async def admin_login(
     admin = await db.scalar(select(AdminUsuario).where(AdminUsuario.email == email))
     if not admin or not verify_password(senha, admin.senha_hash):
         return templates.TemplateResponse(
+            request,
             "admin/login.html",
-            {"request": request, "erro": "Email ou senha inválidos"},
+            {"erro": "Email ou senha inválidos"},
             status_code=401,
         )
     token = create_access_token({"sub": admin.email})
@@ -543,8 +542,7 @@ async def admin_dashboard(
         "concluido": stats_raw.get("concluido", 0),
     }
 
-    return templates.TemplateResponse("admin/dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "admin/dashboard.html", {
         "cadastros": cadastros,
         "stats": stats,
         "page": page,
@@ -570,8 +568,7 @@ async def admin_detalhe(
     if not cadastro:
         raise HTTPException(status_code=404, detail="Cadastro não encontrado")
 
-    return templates.TemplateResponse("admin/detalhe.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "admin/detalhe.html", {
         "cadastro": cadastro,
         "admin_email": admin_email,
         "status_opcoes": ["novo", "em_andamento", "concluido"],
