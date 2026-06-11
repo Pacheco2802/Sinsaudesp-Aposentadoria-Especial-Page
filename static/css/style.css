@@ -32,9 +32,10 @@ a { color: inherit; text-decoration: none; }
 .logo-text .sp { color: var(--verde-escuro); }
 
 /* Logo em imagem (logo real do SinSaúdeSP) */
-.logo-img { height: 44px; width: auto; display: block; }
-.logo--on-dark .logo-img { background: #fff; border-radius: 8px; padding: 5px; }
-.site-footer .logo-img { height: 56px; }
+.logo-img { height: 72px; width: auto; display: block; }
+.logo--on-dark .logo-img { background: #fff; border-radius: 8px; padding: 6px; }
+.site-footer .logo-img { height: 96px; }
+.admin-header .logo-img { height: 60px; }
 
 /* ── Buttons ── */
 .btn-primary {
