@@ -14,6 +14,17 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
 
 
+def smtp_status() -> str:
+    """Resumo de quais variáveis SMTP estão presentes (sem expor valores)."""
+    return (
+        f"SMTP_HOST={'OK' if SMTP_HOST else 'FALTANDO'} | "
+        f"SMTP_PORT={SMTP_PORT} | "
+        f"SMTP_USER={'OK' if SMTP_USER else 'FALTANDO'} | "
+        f"SMTP_PASSWORD={'OK' if SMTP_PASSWORD else 'FALTANDO'} | "
+        f"ADMIN_EMAIL={'OK' if ADMIN_EMAIL else 'FALTANDO'}"
+    )
+
+
 def _mask_cpf(cpf: str) -> str:
     digits = cpf.replace(".", "").replace("-", "")
     if len(digits) == 11:

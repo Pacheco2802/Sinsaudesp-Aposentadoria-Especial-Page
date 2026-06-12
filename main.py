@@ -31,7 +31,12 @@ from auth import (
     verify_password,
 )
 from database import AsyncSessionLocal, Base, engine, get_db
-from email_service import send_admin_notification, send_confirmation_email, send_etapa2_email
+from email_service import (
+    send_admin_notification,
+    send_confirmation_email,
+    send_etapa2_email,
+    smtp_status,
+)
 from models import AdminUsuario, Cadastro, Documento
 from pdf_generator import generate_procuration_pdf
 from schemas import (
@@ -149,6 +154,8 @@ async def lifespan(app: FastAPI):
         ):
             await conn.execute(text(ddl))
     logger.info("Database tables created/verified")
+
+    logger.info("Diagnóstico e-mail: %s", smtp_status())
 
     await seed_admin()
 
