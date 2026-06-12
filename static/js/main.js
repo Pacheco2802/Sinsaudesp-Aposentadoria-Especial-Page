@@ -27,7 +27,7 @@ let docRowCount = 0;
 // Documentos com vaga fixa (cada tipo aparece uma única vez)
 const DOCS_FIXOS = [
   { tipo: 'RG',       label: 'RG',                          obrigatorio: true },
-  { tipo: 'CPF',      label: 'CPF',                         obrigatorio: true },
+  { tipo: 'CPF',      label: 'CPF (se não estiver no RG)',  obrigatorio: false },
   { tipo: 'CTPS',     label: 'Carteira de Trabalho (CTPS)', obrigatorio: true },
   { tipo: 'Holerite', label: 'Holerite / Contracheque',     obrigatorio: true },
   { tipo: 'PPP',      label: 'PPP',                         obrigatorio: false },

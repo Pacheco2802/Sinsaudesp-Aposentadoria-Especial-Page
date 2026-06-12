@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* ── Variables ── */
+/* ── Variaveis ── */
 :root {
   --verde-principal: #2E7D32;
   --verde-escuro: #1B5E20;
@@ -31,7 +31,7 @@ a { color: inherit; text-decoration: none; }
 .logo-text .saude { color: var(--amarelo); }
 .logo-text .sp { color: var(--verde-escuro); }
 
-/* Logo em imagem (logo real do SinSaúdeSP) */
+/* Logo em imagem */
 .logo-img { height: 72px; width: auto; display: block; }
 .logo--on-dark .logo-img { background: #fff; border-radius: 8px; padding: 6px; }
 .site-footer .logo-img { height: 96px; }
