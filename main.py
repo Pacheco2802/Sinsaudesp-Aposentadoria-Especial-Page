@@ -225,7 +225,7 @@ async def api_criar_documento(payload: ZapSignCreateIn):
 
 
 @app.get("/api/zapsign/status")
-@limiter.limit("180/hour")
+@limiter.limit("1200/hour")
 async def api_zapsign_status(request: Request, doc_token: str):
     try:
         info = await zapsign_consultar(doc_token)
@@ -245,7 +245,7 @@ async def api_zapsign_status(request: Request, doc_token: str):
 # ─── File upload ──────────────────────────────────────────────────────────────
 
 @app.post("/api/upload")
-@limiter.limit("30/hour")
+@limiter.limit("300/hour")
 async def api_upload(
     request: Request,
     file: UploadFile = File(...),
@@ -307,7 +307,7 @@ async def api_upload(
 # ─── Registration ─────────────────────────────────────────────────────────────
 
 @app.post("/api/cadastro")
-@limiter.limit("5/hour")
+@limiter.limit("50/hour")
 async def api_cadastro(
     request: Request,
     nome_completo: str = Form(...),
