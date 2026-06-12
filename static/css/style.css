@@ -324,7 +324,22 @@ input.error, select.error { border-color: #c62828; }
 }
 .upload-row.uploaded { border-color: var(--verde-principal); background: #f1f8f1; }
 .upload-row-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.tipo-select { flex: 1; min-width: 120px; padding: 8px 10px; }
+.doc-label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 140px; flex-wrap: wrap; }
+.doc-name { font-weight: 600; font-size: 0.92rem; color: #333; }
+.doc-badge { font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
+.doc-badge.obrig { background: #ffebee; color: #c62828; }
+.doc-badge.opc { background: #eceff1; color: #607d8b; }
+.upload-progress-msg {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #c62828;
+  background: #fff5f5;
+  border: 1px solid #ffcdd2;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+}
+.upload-progress-msg.completo { color: var(--verde-escuro); background: #f1f8f1; border-color: #a5d6a7; }
 .upload-btn-wrap { display: flex; align-items: center; gap: 10px; }
 .upload-input { display: none; }
 .upload-label-btn {

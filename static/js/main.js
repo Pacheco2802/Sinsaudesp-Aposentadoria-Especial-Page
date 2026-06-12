@@ -21,22 +21,47 @@ function maskPhone(e) {
 // ── Upload ───────────────────────────────────────────────────────────────────
 
 const SESSION_ID = crypto.randomUUID();
-const uploadedFiles = {};    // tipo → { file_id, nome_original, done: bool }
+const uploadedFiles = {};    // rowId → { tipo, file_id, nome_original, done: bool }
 let docRowCount = 0;
 
-function addDocRow(tipoDefault) {
+// Documentos com vaga fixa (cada tipo aparece uma única vez)
+const DOCS_FIXOS = [
+  { tipo: 'RG',       label: 'RG',                          obrigatorio: true },
+  { tipo: 'CPF',      label: 'CPF',                         obrigatorio: true },
+  { tipo: 'CTPS',     label: 'Carteira de Trabalho (CTPS)', obrigatorio: true },
+  { tipo: 'Holerite', label: 'Holerite / Contracheque',     obrigatorio: true },
+  { tipo: 'PPP',      label: 'PPP',                         obrigatorio: false },
+];
+
+const TOTAL_OBRIGATORIOS = DOCS_FIXOS.filter(d => d.obrigatorio).length;
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Cria uma linha de upload. Se def for null, é um documento extra (tipo "Outro", removível).
+function addDocRow(def) {
   const list = document.getElementById('upload-list');
   if (!list) return;
 
   const rowId = `row-${++docRowCount}`;
-  const tipos = ['RG', 'CPF', 'CTPS', 'Holerite', 'PPP'];
+  const tipo = def ? def.tipo : 'Outro';
+  const label = def ? def.label : 'Documento extra';
+  const obrigatorio = def ? def.obrigatorio : false;
+  const removivel = !def;
+
+  const badge = obrigatorio
+    ? '<span class="doc-badge obrig">Obrigatório</span>'
+    : '<span class="doc-badge opc">Opcional</span>';
 
   const html = `
-  <div class="upload-row" id="${rowId}">
+  <div class="upload-row" id="${rowId}" data-tipo="${tipo}" data-obrig="${obrigatorio}">
     <div class="upload-row-header">
-      <select class="tipo-select" id="tipo-${rowId}">
-        ${tipos.map(t => `<option value="${t}" ${t === tipoDefault ? 'selected' : ''}>${t === 'CPF' ? 'CPF (documento)' : t}</option>`).join('')}
-      </select>
+      <div class="doc-label">
+        <span class="doc-name">${escapeHtml(label)}</span>
+        ${badge}
+      </div>
       <div class="upload-btn-wrap">
         <label class="upload-label-btn" for="file-${rowId}">
           📎 Selecionar arquivo
@@ -44,7 +69,7 @@ function addDocRow(tipoDefault) {
         <input type="file" class="upload-input" id="file-${rowId}"
                accept=".pdf,.jpg,.jpeg,.png"
                onchange="handleFileSelect('${rowId}')">
-        ${docRowCount > 1 ? `<button type="button" class="remove-doc-btn" onclick="removeRow('${rowId}')">✕</button>` : ''}
+        ${removivel ? `<button type="button" class="remove-doc-btn" onclick="removeRow('${rowId}')">✕</button>` : ''}
       </div>
     </div>
     <div class="upload-progress"><div class="upload-progress-bar" id="prog-${rowId}"></div></div>
@@ -57,12 +82,12 @@ function addDocRow(tipoDefault) {
 function removeRow(rowId) {
   const row = document.getElementById(rowId);
   if (row) row.remove();
+  delete uploadedFiles[rowId];
   updateSubmitButton();
 }
 
 async function handleFileSelect(rowId) {
   const fileInput = document.getElementById(`file-${rowId}`);
-  const tipoSelect = document.getElementById(`tipo-${rowId}`);
   const statusEl = document.getElementById(`status-${rowId}`);
   const progressWrap = document.querySelector(`#${rowId} .upload-progress`);
   const progressBar = document.getElementById(`prog-${rowId}`);
@@ -77,12 +102,11 @@ async function handleFileSelect(rowId) {
     return;
   }
 
-  const tipo = tipoSelect.value;
+  const tipo = row.dataset.tipo;
   statusEl.textContent = 'Enviando…';
   statusEl.className = 'upload-status uploading';
   progressWrap.style.display = 'block';
   progressBar.style.width = '0%';
-  tipoSelect.disabled = true;
 
   const fd = new FormData();
   fd.append('file', file);
@@ -101,7 +125,6 @@ async function handleFileSelect(rowId) {
   } catch (err) {
     statusEl.textContent = `❌ ${err.message || 'Erro no upload'}`;
     statusEl.className = 'upload-status error';
-    tipoSelect.disabled = false;
     progressWrap.style.display = 'none';
   }
 
@@ -271,9 +294,30 @@ function updateSubmitButton() {
   if (!btn) return;
 
   const hasSignature = !!zapSignDocToken || !!document.getElementById('zapsign_doc_token')?.value;
-  const hasDocs = Object.values(uploadedFiles).some(f => f.done);
 
-  btn.disabled = !(hasSignature && hasDocs);
+  const enviados = new Set(
+    Object.values(uploadedFiles).filter(f => f.done).map(f => f.tipo)
+  );
+  const obrigatoriosEnviados = DOCS_FIXOS
+    .filter(d => d.obrigatorio)
+    .filter(d => enviados.has(d.tipo)).length;
+  const todosObrigatorios = obrigatoriosEnviados === TOTAL_OBRIGATORIOS;
+
+  // Atualiza o contador de progresso
+  const msg = document.getElementById('upload-progress-msg');
+  if (msg) {
+    msg.textContent = `${obrigatoriosEnviados} de ${TOTAL_OBRIGATORIOS} documentos obrigatórios enviados`;
+    msg.classList.toggle('completo', todosObrigatorios);
+  }
+
+  btn.disabled = !(hasSignature && todosObrigatorios);
+}
+
+function docsObrigatoriosFaltando() {
+  const enviados = new Set(
+    Object.values(uploadedFiles).filter(f => f.done).map(f => f.tipo)
+  );
+  return DOCS_FIXOS.filter(d => d.obrigatorio && !enviados.has(d.tipo)).map(d => d.label);
 }
 
 async function submitForm(e) {
@@ -304,9 +348,9 @@ async function submitForm(e) {
     return;
   }
 
-  const hasDocs = Object.values(uploadedFiles).some(f => f.done);
-  if (!hasDocs) {
-    alert('Por favor, envie ao menos um documento.');
+  const faltando = docsObrigatoriosFaltando();
+  if (faltando.length > 0) {
+    alert('Faltam documentos obrigatórios:\n\n• ' + faltando.join('\n• '));
     return;
   }
 
@@ -407,17 +451,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cpf')?.addEventListener('input', maskCPF);
   document.getElementById('telefone')?.addEventListener('input', maskPhone);
 
-  // Initial upload row
+  // Vagas fixas de documentos (cada tipo uma única vez)
   if (document.getElementById('upload-list')) {
-    const tipos = ['RG', 'CPF', 'CTPS', 'Holerite'];
-    tipos.forEach(t => addDocRow(t));
+    DOCS_FIXOS.forEach(def => addDocRow(def));
   }
 
   // Form submit
   document.getElementById('cadastro-form')?.addEventListener('submit', submitForm);
 
-  // Add doc button
-  document.getElementById('add-doc-btn')?.addEventListener('click', () => addDocRow('PPP'));
+  // Adicionar documento extra (tipo "Outro", removível)
+  document.getElementById('add-doc-btn')?.addEventListener('click', () => addDocRow(null));
 
   updateSubmitButton();
 });

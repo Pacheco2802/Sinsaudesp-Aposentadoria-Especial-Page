@@ -73,7 +73,7 @@ ALLOWED_MIME_MAGIC = {
     b"\x89PNG": "image/png",
 }
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-TIPOS_VALIDOS = {"RG", "CPF", "CTPS", "Holerite", "PPP"}
+TIPOS_VALIDOS = {"RG", "CPF", "CTPS", "Holerite", "PPP", "Outro"}
 
 
 async def seed_admin() -> None:

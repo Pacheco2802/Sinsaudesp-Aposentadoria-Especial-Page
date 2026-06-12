@@ -105,18 +105,22 @@
         <span>📎</span> Documentos
       </div>
 
-      <p style="font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 16px;">
-        Envie os documentos disponíveis. RG, CPF, CTPS e Holerite são obrigatórios. PPP é opcional
-        <span style="color: var(--cinza-texto);">(envie se tiver)</span>.
+      <p style="font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 6px;">
+        Anexe um arquivo em cada item abaixo. Os itens marcados como
+        <strong style="color: #c62828;">Obrigatório</strong> precisam ser enviados para concluir o cadastro.
         Formatos aceitos: PDF, JPG, PNG. Máximo 10MB por arquivo.
       </p>
+
+      <div id="upload-progress-msg" class="upload-progress-msg">
+        0 de 4 documentos obrigatórios enviados
+      </div>
 
       <div id="upload-list" class="upload-list">
         <!-- rows injected by JS -->
       </div>
 
       <button type="button" class="add-doc-btn" id="add-doc-btn">
-        + Adicionar outro documento
+        + Adicionar documento extra
       </button>
     </div>
 
