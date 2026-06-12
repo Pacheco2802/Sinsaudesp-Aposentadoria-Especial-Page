@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aposentadoria Especial por Perigo Biológico — SinSaúdeSP</title>
-  <meta name="description" content="Sindicato dos Trabalhadores da Saúde de SP oferece assessoria jurídica gratuita para aposentadoria especial por perigo biológico. Cadastre-se online.">
+  <meta name="description" content="SinSaúdeSP oferece análise gratuita de aposentadoria especial por perigo biológico para trabalhadores da saúde. Cadastre-se e agende seu atendimento online ou presencial.">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -14,28 +14,18 @@
   <a href="/" class="logo" aria-label="SinSaúdeSP">
     <img src="/static/img/logo.png" alt="SinSaúdeSP" class="logo-img">
   </a>
-  <a href="/cadastro{% if filiado %}?filiado={{ filiado }}{% endif %}" class="btn-secondary">Cadastre-se</a>
+  <a href="/cadastro" class="btn-secondary">Cadastre-se</a>
 </header>
 
 <!-- Hero -->
 <section class="hero">
   <div class="container">
-    {% if filiado == 'nao' %}
-    <span class="badge-service">VOCÊ TAMBÉM TEM ESSE DIREITO</span>
-    {% else %}
-    <span class="badge-service">GRATUITO PARA FILIADOS EM DIA</span>
-    {% endif %}
+    <span class="badge-service">ANÁLISE GRATUITA PARA TRABALHADORES DA SAÚDE</span>
     <h1>Aposentadoria Especial por</h1>
     <div class="hero-sub">Perigo Biológico</div>
-    {% if filiado == 'nao' %}
-    <p>Trabalhadores da saúde expostos a agentes biológicos têm direito à aposentadoria especial com apenas 25 anos de contribuição. Filiando-se ao SinSaúdeSP, você tem a assessoria jurídica completa do sindicato, sem pagar honorários advocatícios.</p>
-    <a href="/cadastro?filiado=nao" class="btn-primary">Quero garantir meu direito</a>
-    <p class="hero-note">Cadastre-se em minutos. Nossa equipe entra em contato e te orienta sobre a filiação e todo o processo.</p>
-    {% else %}
-    <p>Trabalhadores da saúde expostos a agentes biológicos têm direito à aposentadoria especial com apenas 25 anos de contribuição. O SinSaúdeSP cuida de tudo, sem custos para você.</p>
-    <a href="/cadastro{% if filiado %}?filiado={{ filiado }}{% endif %}" class="btn-primary">Garanta sua aposentadoria especial agora!</a>
-    <p class="hero-note">Sem custos para filiados em dia com as contribuições. Sem burocracia. Advogados especializados do sindicato cuidam de tudo.</p>
-    {% endif %}
+    <p>Trabalhadores da saúde expostos a agentes biológicos têm direito à aposentadoria especial com apenas 25 anos de contribuição. Cadastre-se, agende seu atendimento e receba a análise gratuita do seu caso.</p>
+    <a href="/cadastro" class="btn-primary">Agendar minha análise gratuita</a>
+    <p class="hero-note">Atendimento online (via Teams) ou presencial, com a equipe especializada do sindicato.</p>
   </div>
 </section>
 
@@ -57,8 +47,8 @@
       </div>
       <div class="card">
         <div class="card-icon">📄</div>
-        <h3 style="color: var(--azul-gradiente);">PPP e Laudos</h3>
-        <p>O Perfil Profissiográfico Previdenciário (PPP) é o documento-chave. Nossos advogados analisam e orientam sobre a documentação necessária.</p>
+        <h3 style="color: var(--azul-gradiente);">Análise de Estabilidade</h3>
+        <p>Além da aposentadoria, você pode solicitar também a análise de estabilidade no emprego — basta marcar a opção no cadastro.</p>
       </div>
     </div>
   </div>
@@ -86,78 +76,40 @@
 <section class="section">
   <div class="container">
     <h2 class="section-title">Como funciona?</h2>
-    <p class="section-subtitle">Três passos simples para garantir seus direitos</p>
+    <p class="section-subtitle">Três passos simples para entender seus direitos</p>
     <div class="steps">
       <div class="step-item">
         <div class="step-circle">1</div>
         <div class="step-content">
-          <h3>Cadastro online</h3>
-          <p>Preencha o formulário com seus dados e documentos em minutos, pelo celular.</p>
+          <h3>Cadastre-se e agende</h3>
+          <p>Preencha o formulário em minutos, pelo celular, e escolha o melhor dia e horário para o seu atendimento. Se tiver o extrato CNIS (Meu INSS), anexe — fazemos uma pré-análise antes mesmo da conversa.</p>
         </div>
       </div>
       <div class="step-item">
         <div class="step-circle">2</div>
         <div class="step-content">
-          <h3>Análise jurídica</h3>
-          <p>Um advogado especializado do SinSaúdeSP analisará seu caso em até 48 horas.</p>
+          <h3>Atendimento online ou presencial</h3>
+          <p>No dia marcado, você conversa com a equipe especializada do SinSaúdeSP — por videochamada (Teams) ou presencialmente, como preferir.</p>
         </div>
       </div>
       <div class="step-item">
         <div class="step-circle">3</div>
         <div class="step-content">
-          <h3>Acompanhamento</h3>
-          <p>Acompanhe todo o processo com suporte direto do sindicato, sem custos adicionais.</p>
+          <h3>Análise gratuita do seu caso</h3>
+          <p>Você recebe a análise do seu direito à aposentadoria especial e toda a orientação sobre os próximos passos do processo.</p>
         </div>
       </div>
     </div>
   </div>
 </section>
-
-{% if filiado == 'nao' %}
-<!-- Caminho do não filiado -->
-<section class="section section-gray">
-  <div class="container">
-    <h2 class="section-title">Ainda não é filiado? Veja como é simples</h2>
-    <p class="section-subtitle">Por lei, a assessoria jurídica gratuita é um benefício exclusivo dos filiados em dia com as contribuições. A boa notícia: a filiação é rápida e você já sai com o processo encaminhado.</p>
-    <div class="steps">
-      <div class="step-item">
-        <div class="step-circle">1</div>
-        <div class="step-content">
-          <h3>Cadastre-se agora</h3>
-          <p>Preencha o formulário com seus dados e documentos, em minutos, pelo celular.</p>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">2</div>
-        <div class="step-content">
-          <h3>Filie-se ao SinSaúdeSP</h3>
-          <p>Nossa equipe entra em contato e te orienta sobre a filiação, sem complicação.</p>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">3</div>
-        <div class="step-content">
-          <h3>Atendimento gratuito</h3>
-          <p>Como filiado(a) em dia, você tem a assessoria jurídica completa e ainda conta com todos os demais benefícios do sindicato.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-{% endif %}
 
 <!-- CTA final -->
 <section class="cta-section">
   <div class="container">
     <div class="cta-icon">👨‍⚕️👩‍⚕️</div>
     <h2>Não perca seus direitos!</h2>
-    {% if filiado == 'nao' %}
-    <p>Advogados particulares cobram caro por esse serviço. Filiando-se ao SinSaúdeSP, você tem a assessoria jurídica completa além de todos os outros benefícios da filiação.</p>
-    <a href="/cadastro?filiado=nao" class="btn-primary">Quero garantir meu direito</a>
-    {% else %}
-    <p>Advogados particulares cobram caro por esse serviço. No SinSaúdeSP, filiados em dia têm acesso gratuito à assessoria jurídica completa.</p>
-    <a href="/cadastro{% if filiado %}?filiado={{ filiado }}{% endif %}" class="btn-primary">Garanta sua aposentadoria especial agora!</a>
-    {% endif %}
+    <p>A análise do seu caso é gratuita para toda a categoria da saúde. Cadastre-se agora e agende seu atendimento com a equipe especializada do SinSaúdeSP.</p>
+    <a href="/cadastro" class="btn-primary">Agendar minha análise gratuita</a>
   </div>
 </section>
 

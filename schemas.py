@@ -26,7 +26,15 @@ class CadastroCreate(BaseModel):
     cargo: str
     tempo_servico: str
     filiado: bool
-    zapsign_doc_token: str
+    analise_estabilidade: bool = False
+    cep: str
+    logradouro: str
+    numero: str
+    complemento: str = ""
+    bairro: str
+    cidade: str
+    uf: str
+    modalidade_atendimento: str
 
     @field_validator("nome_completo")
     @classmethod
@@ -64,12 +72,47 @@ class CadastroCreate(BaseModel):
             raise ValueError("Texto muito longo")
         return v
 
-    @field_validator("zapsign_doc_token")
+    @field_validator("cep")
     @classmethod
-    def validate_token(cls, v: str) -> str:
+    def validate_cep(cls, v: str) -> str:
+        digits = re.sub(r"\D", "", v)
+        if len(digits) != 8:
+            raise ValueError("CEP inválido")
+        return f"{digits[:5]}-{digits[5:]}"
+
+    @field_validator("logradouro", "numero", "bairro", "cidade")
+    @classmethod
+    def validate_endereco(cls, v: str) -> str:
         v = v.strip()
         if not v:
-            raise ValueError("Assinatura digital obrigatória")
+            raise ValueError("Endereço incompleto")
+        if len(v) > 255:
+            raise ValueError("Texto muito longo")
+        return v
+
+    @field_validator("complemento")
+    @classmethod
+    def validate_complemento(cls, v: str) -> str:
+        return v.strip()[:100]
+
+    @field_validator("uf")
+    @classmethod
+    def validate_uf(cls, v: str) -> str:
+        v = v.strip().upper()
+        ufs = {
+            "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
+            "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
+            "SP", "SE", "TO",
+        }
+        if v not in ufs:
+            raise ValueError("UF inválida")
+        return v
+
+    @field_validator("modalidade_atendimento")
+    @classmethod
+    def validate_modalidade(cls, v: str) -> str:
+        if v not in ("online", "presencial"):
+            raise ValueError("Modalidade inválida")
         return v
 
 

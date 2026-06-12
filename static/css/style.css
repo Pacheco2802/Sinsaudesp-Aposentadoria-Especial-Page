@@ -467,6 +467,46 @@ input.error, select.error { border-color: #c62828; }
 }
 .remove-doc-btn:hover { background: #ffebee; }
 
+/* Agenda de horários */
+.horarios-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 44px;
+  align-items: center;
+}
+.horarios-hint { font-size: 0.84rem; color: var(--cinza-texto); }
+.horario-btn {
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-borda);
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.horario-btn:hover:not(:disabled) { border-color: var(--verde-principal); background: #f1f8f1; }
+.horario-btn.selecionado {
+  background: var(--verde-principal);
+  border-color: var(--verde-principal);
+  color: white;
+}
+.horario-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+.agendamento-resumo {
+  background: #f1f8f1;
+  border: 1px solid #a5d6a7;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin: 16px 0;
+  text-align: center;
+}
+.agendamento-resumo p { margin: 4px 0; }
+
 /* Procuração */
 .procuracao-box {
   background: #f9f9f9;

@@ -88,6 +88,83 @@
         {% endif %}
       </div>
 
+      <!-- Endereço -->
+      <div class="detail-card">
+        <h3>📍 Endereço</h3>
+        {% if cadastro.logradouro %}
+        <div class="info-row">
+          <span class="info-label">Endereço</span>
+          <span class="info-value">
+            {{ cadastro.logradouro }}, {{ cadastro.numero }}{% if cadastro.complemento %} — {{ cadastro.complemento }}{% endif %}
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Bairro / Cidade</span>
+          <span class="info-value">{{ cadastro.bairro }} — {{ cadastro.cidade }}/{{ cadastro.uf }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">CEP</span>
+          <span class="info-value" style="font-family: monospace;">{{ cadastro.cep }}</span>
+        </div>
+        {% else %}
+        <p style="color: var(--cinza-texto); font-size: 0.9rem;">Não informado (cadastro anterior à atualização).</p>
+        {% endif %}
+      </div>
+
+      <!-- Atendimento -->
+      <div class="detail-card">
+        <h3>📅 Atendimento</h3>
+        {% if cadastro.agendamento %}
+        <div class="info-row">
+          <span class="info-label">Data e horário</span>
+          <span class="info-value"><strong>{{ cadastro.agendamento.strftime('%d/%m/%Y às %H:%M') }}</strong></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Modalidade</span>
+          <span class="info-value">
+            {{ '💻 Online (Teams) — enviar o link da reunião para a pessoa' if cadastro.modalidade_atendimento == 'online' else '🏢 Presencial' }}
+          </span>
+        </div>
+        {% else %}
+        <p style="color: var(--cinza-texto); font-size: 0.9rem;">Sem agendamento registrado.</p>
+        {% endif %}
+        <div class="info-row">
+          <span class="info-label">Análise de estabilidade</span>
+          <span class="info-value">
+            {% if cadastro.analise_estabilidade %}
+            <strong style="color: var(--azul-gradiente);">Sim — solicitada</strong>
+            {% else %}
+            <span style="color: var(--cinza-texto);">Não solicitada</span>
+            {% endif %}
+          </span>
+        </div>
+      </div>
+
+      <!-- Etapa 2 -->
+      <div class="detail-card">
+        <h3>📑 Etapa 2 — Documentação e Procuração</h3>
+        {% if cadastro.etapa2_concluida_em %}
+        <p style="font-size: 0.9rem; color: var(--verde-principal); font-weight: 600;">
+          ✓ Concluída em {{ cadastro.etapa2_concluida_em.strftime('%d/%m/%Y às %H:%M') }}
+        </p>
+        {% elif cadastro.etapa2_liberada_em %}
+        <p style="font-size: 0.9rem; color: #F57F17; font-weight: 600;">
+          ⏳ Liberada em {{ cadastro.etapa2_liberada_em.strftime('%d/%m/%Y às %H:%M') }} — aguardando a pessoa enviar
+        </p>
+        <button type="button" class="btn-outline" onclick="liberarEtapa2({{ cadastro.id }})"
+                style="font-size: 0.8rem; padding: 6px 14px; margin-top: 8px;">
+          Reenviar e-mail com o link
+        </button>
+        {% else %}
+        <p style="font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 10px;">
+          Após realizar o atendimento, libere a etapa 2 para a pessoa enviar a documentação completa e assinar a procuração. Um e-mail com o link será enviado automaticamente.
+        </p>
+        <button type="button" class="btn-secondary" onclick="liberarEtapa2({{ cadastro.id }})">
+          Liberar etapa 2
+        </button>
+        {% endif %}
+      </div>
+
       <!-- Dados profissionais -->
       <div class="detail-card">
         <h3>🏥 Dados Profissionais</h3>

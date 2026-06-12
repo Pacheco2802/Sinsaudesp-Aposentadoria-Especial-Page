@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -19,6 +19,26 @@ class Cadastro(Base):
     cargo: Mapped[str] = mapped_column(String(255), nullable=False)
     tempo_servico: Mapped[str] = mapped_column(String(100), nullable=False)
     filiado: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    # Endereço completo
+    cep: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
+    logradouro: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    numero: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    complemento: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    bairro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    cidade: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    uf: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
+
+    # Atendimento
+    analise_estabilidade: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    modalidade_atendimento: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # online | presencial
+    agendamento: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    # Etapa 2 (documentação completa + procuração, liberada após o atendimento)
+    etapa2_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    etapa2_liberada_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    etapa2_concluida_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="novo", server_default="novo")
     nota_interna: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     zapsign_doc_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

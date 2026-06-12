@@ -76,9 +76,9 @@
             <th>Nome</th>
             <th>CPF</th>
             <th>Hospital</th>
-            <th>Cargo</th>
             <th>Filiado</th>
-            <th>Data</th>
+            <th>Atendimento</th>
+            <th>Etapa</th>
             <th>Status</th>
             <th>Ações</th>
           </tr>
@@ -90,7 +90,6 @@
             <td><strong>{{ c.nome_completo }}</strong></td>
             <td style="font-family: monospace; font-size: 0.85rem;">{{ c.cpf }}</td>
             <td>{{ c.hospital }}</td>
-            <td>{{ c.cargo }}</td>
             <td>
               {% if c.filiado %}
               <span style="color: var(--verde-principal); font-weight: 600;">Sim</span>
@@ -98,8 +97,22 @@
               <span style="color: var(--cinza-texto);">Não</span>
               {% endif %}
             </td>
-            <td style="white-space: nowrap; font-size: 0.82rem; color: var(--cinza-texto);">
-              {{ c.created_at.strftime('%d/%m/%Y') }}
+            <td style="white-space: nowrap; font-size: 0.82rem;">
+              {% if c.agendamento %}
+              {{ c.agendamento.strftime('%d/%m %H:%M') }}
+              <span style="color: var(--cinza-texto);">{{ '💻' if c.modalidade_atendimento == 'online' else '🏢' }}</span>
+              {% else %}
+              <span style="color: var(--cinza-texto);">—</span>
+              {% endif %}
+            </td>
+            <td style="white-space: nowrap; font-size: 0.78rem;">
+              {% if c.etapa2_concluida_em %}
+              <span style="color: var(--verde-principal); font-weight: 600;">2 ✓</span>
+              {% elif c.etapa2_liberada_em %}
+              <span style="color: #F57F17; font-weight: 600;">2 pendente</span>
+              {% else %}
+              <span style="color: var(--cinza-texto);">1</span>
+              {% endif %}
             </td>
             <td>
               <span class="badge badge-{{ c.status }}">

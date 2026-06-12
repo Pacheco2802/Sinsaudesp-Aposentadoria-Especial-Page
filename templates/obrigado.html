@@ -16,11 +16,31 @@
       <path d="M22 36l10 10 18-20" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
 
-    <h1>Cadastro realizado com sucesso!</h1>
+    {% if etapa2 %}
+    <h1>Documentação enviada com sucesso!</h1>
 
     <div class="protocolo-num">#{{ protocolo }}</div>
 
-    <p>Recebemos seus dados. Um advogado especializado do SinSaúdeSP entrará em contato em até <strong>48 horas</strong> pelo WhatsApp ou e-mail cadastrado.</p>
+    <p>Recebemos seus documentos e sua procuração assinada. A equipe jurídica do SinSaúdeSP dará andamento ao seu processo e manterá você informado(a) pelo WhatsApp ou e-mail cadastrado.</p>
+    {% else %}
+    <h1>Cadastro e agendamento confirmados!</h1>
+
+    <div class="protocolo-num">#{{ protocolo }}</div>
+
+    {% if data and hora %}
+    <div class="agendamento-resumo">
+      <p><strong>📅 Seu atendimento:</strong> {{ data }} às {{ hora }}</p>
+      <p><strong>{{ '💻 Online (via Microsoft Teams)' if modalidade == 'online' else '🏢 Presencial' }}</strong></p>
+    </div>
+    {% if modalidade == 'online' %}
+    <p>Você receberá o link da reunião do Teams por e-mail ou WhatsApp antes do horário marcado.</p>
+    {% else %}
+    <p>Nossa equipe confirmará o endereço do atendimento pelo WhatsApp ou e-mail cadastrado.</p>
+    {% endif %}
+    {% else %}
+    <p>Recebemos seus dados. Nossa equipe entrará em contato pelo WhatsApp ou e-mail cadastrado.</p>
+    {% endif %}
+    {% endif %}
 
     <p style="margin-top: 12px; font-size: 0.85rem; color: var(--cinza-texto);">
       Guarde o número de protocolo acima para acompanhamento.

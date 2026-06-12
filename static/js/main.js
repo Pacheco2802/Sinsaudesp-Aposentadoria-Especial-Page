@@ -18,14 +18,29 @@ function maskPhone(e) {
   e.target.value = v;
 }
 
+function maskCEP(e) {
+  let v = e.target.value.replace(/\D/g, '').slice(0, 8);
+  if (v.length > 5) v = v.replace(/(\d{5})(\d{1,3})/, '$1-$2');
+  e.target.value = v;
+}
+
+// ── Page detection ───────────────────────────────────────────────────────────
+
+const ETAPA2_TOKEN = document.body?.dataset?.etapa2Token || null;
+const IS_ETAPA2 = !!ETAPA2_TOKEN;
+
 // ── Upload ───────────────────────────────────────────────────────────────────
 
 const SESSION_ID = crypto.randomUUID();
 const uploadedFiles = {};    // rowId → { tipo, file_id, nome_original, done: bool }
 let docRowCount = 0;
 
-// Documentos com vaga fixa (cada tipo aparece uma única vez)
-const DOCS_FIXOS = [
+// Vagas fixas por página
+const DOCS_ETAPA1 = [
+  { tipo: 'CNIS', label: 'Extrato CNIS (Meu INSS)', obrigatorio: false },
+];
+
+const DOCS_ETAPA2 = [
   { tipo: 'RG',       label: 'RG',                          obrigatorio: true },
   { tipo: 'CPF',      label: 'CPF (se não estiver no RG)',  obrigatorio: false },
   { tipo: 'CTPS',     label: 'Carteira de Trabalho (CTPS)', obrigatorio: true },
@@ -33,6 +48,7 @@ const DOCS_FIXOS = [
   { tipo: 'PPP',      label: 'PPP',                         obrigatorio: false },
 ];
 
+const DOCS_FIXOS = IS_ETAPA2 ? DOCS_ETAPA2 : DOCS_ETAPA1;
 const TOTAL_OBRIGATORIOS = DOCS_FIXOS.filter(d => d.obrigatorio).length;
 
 function escapeHtml(s) {
@@ -40,9 +56,13 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function getUploadList() {
+  return document.getElementById('upload-list-etapa2') || document.getElementById('upload-list');
+}
+
 // Cria uma linha de upload. Se def for null, é um documento extra (tipo "Outro", removível).
 function addDocRow(def) {
-  const list = document.getElementById('upload-list');
+  const list = getUploadList();
   if (!list) return;
 
   const rowId = `row-${++docRowCount}`;
@@ -137,7 +157,7 @@ function uploadXHR(url, formData, onProgress) {
     xhr.open('POST', url);
 
     xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100));
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     });
 
     xhr.addEventListener('load', () => {
@@ -156,23 +176,108 @@ function uploadXHR(url, formData, onProgress) {
   });
 }
 
-// ── ZapSign ──────────────────────────────────────────────────────────────────
+// ── ViaCEP (busca de endereço) ───────────────────────────────────────────────
+
+async function buscarCEP() {
+  const cepInput = document.getElementById('cep');
+  if (!cepInput) return;
+  const digits = cepInput.value.replace(/\D/g, '');
+  if (digits.length !== 8) return;
+
+  try {
+    const resp = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.erro) return;
+
+    const setIfEmptyOrAuto = (id, value) => {
+      const el = document.getElementById(id);
+      if (el && value) el.value = value;
+    };
+    setIfEmptyOrAuto('logradouro', data.logradouro);
+    setIfEmptyOrAuto('bairro', data.bairro);
+    setIfEmptyOrAuto('cidade', data.localidade);
+    if (data.uf) {
+      const ufEl = document.getElementById('uf');
+      if (ufEl) ufEl.value = data.uf;
+    }
+  } catch {
+    // silencioso: usuário preenche manualmente
+  }
+}
+
+// ── Agenda de horários ───────────────────────────────────────────────────────
+
+let horarioSelecionado = null;
+
+async function carregarHorarios() {
+  const dataInput = document.getElementById('agendamento_data');
+  const grid = document.getElementById('horarios-grid');
+  const hiddenHora = document.getElementById('agendamento_hora');
+  if (!dataInput || !grid) return;
+
+  horarioSelecionado = null;
+  if (hiddenHora) hiddenHora.value = '';
+  updateSubmitButton();
+
+  const data = dataInput.value;
+  if (!data) {
+    grid.innerHTML = '<span class="horarios-hint">Escolha uma data para ver os horários disponíveis</span>';
+    return;
+  }
+
+  const diaSemana = new Date(data + 'T12:00:00').getDay();
+  if (diaSemana === 0 || diaSemana === 6) {
+    grid.innerHTML = '<span class="horarios-hint" style="color:#c62828;">Atendimentos apenas em dias úteis. Escolha outra data.</span>';
+    return;
+  }
+
+  grid.innerHTML = '<span class="horarios-hint">Carregando horários…</span>';
+
+  try {
+    const resp = await fetch(`/api/agenda/horarios?data=${encodeURIComponent(data)}`);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      grid.innerHTML = `<span class="horarios-hint" style="color:#c62828;">${escapeHtml(err.detail || 'Não foi possível carregar os horários')}</span>`;
+      return;
+    }
+    const { horarios } = await resp.json();
+
+    const livres = horarios.filter(h => h.disponivel);
+    if (!livres.length) {
+      grid.innerHTML = '<span class="horarios-hint" style="color:#c62828;">Nenhum horário disponível nesta data. Escolha outro dia.</span>';
+      return;
+    }
+
+    grid.innerHTML = horarios.map(h => `
+      <button type="button" class="horario-btn" data-hora="${h.hora}"
+              ${h.disponivel ? '' : 'disabled'}
+              onclick="selecionarHorario('${h.hora}')">
+        ${h.hora}
+      </button>`).join('');
+  } catch {
+    grid.innerHTML = '<span class="horarios-hint" style="color:#c62828;">Erro ao carregar horários. Tente novamente.</span>';
+  }
+}
+
+function selecionarHorario(hora) {
+  horarioSelecionado = hora;
+  const hiddenHora = document.getElementById('agendamento_hora');
+  if (hiddenHora) hiddenHora.value = hora;
+
+  document.querySelectorAll('.horario-btn').forEach(btn => {
+    btn.classList.toggle('selecionado', btn.dataset.hora === hora);
+  });
+  updateSubmitButton();
+}
+
+// ── ZapSign (somente etapa 2) ────────────────────────────────────────────────
 
 let zapSignDocToken = null;
+let zapSignPollTimer = null;
 
 async function iniciarAssinatura() {
-  const nome = document.getElementById('nome_completo')?.value?.trim();
-  const cpf = document.getElementById('cpf')?.value?.trim();
   const checkbox = document.getElementById('procuracao_aceite');
-
-  if (!nome || nome.length < 3) {
-    alert('Por favor, preencha o nome completo antes de assinar.');
-    return;
-  }
-  if (!cpf || cpf.replace(/\D/g, '').length !== 11) {
-    alert('Por favor, preencha o CPF antes de assinar.');
-    return;
-  }
   if (checkbox && !checkbox.checked) {
     alert('Por favor, leia e aceite os termos da procuração antes de assinar.');
     return;
@@ -183,11 +288,7 @@ async function iniciarAssinatura() {
   btn.innerHTML = '<span class="spinner"></span>Gerando documento…';
 
   try {
-    const resp = await fetch('/api/zapsign/criar-documento', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, cpf }),
-    });
+    const resp = await fetch(`/api/etapa2/${ETAPA2_TOKEN}/zapsign`, { method: 'POST' });
 
     if (!resp.ok) {
       const err = await resp.json();
@@ -208,8 +309,6 @@ async function iniciarAssinatura() {
     btn.textContent = 'Assinar digitalmente';
   }
 }
-
-let zapSignPollTimer = null;
 
 function iniciarVerificacaoAssinatura(docToken) {
   pararVerificacaoAssinatura();
@@ -289,11 +388,16 @@ window.addEventListener('message', (e) => {
 
 // ── Submit validation ─────────────────────────────────────────────────────────
 
+function docsObrigatoriosFaltando() {
+  const enviados = new Set(
+    Object.values(uploadedFiles).filter(f => f.done).map(f => f.tipo)
+  );
+  return DOCS_FIXOS.filter(d => d.obrigatorio && !enviados.has(d.tipo)).map(d => d.label);
+}
+
 function updateSubmitButton() {
   const btn = document.getElementById('btn-submit');
   if (!btn) return;
-
-  const hasSignature = !!zapSignDocToken || !!document.getElementById('zapsign_doc_token')?.value;
 
   const enviados = new Set(
     Object.values(uploadedFiles).filter(f => f.done).map(f => f.tipo)
@@ -303,35 +407,24 @@ function updateSubmitButton() {
     .filter(d => enviados.has(d.tipo)).length;
   const todosObrigatorios = obrigatoriosEnviados === TOTAL_OBRIGATORIOS;
 
-  // Atualiza o contador de progresso
   const msg = document.getElementById('upload-progress-msg');
-  if (msg) {
+  if (msg && TOTAL_OBRIGATORIOS > 0) {
     msg.textContent = `${obrigatoriosEnviados} de ${TOTAL_OBRIGATORIOS} documentos obrigatórios enviados`;
     msg.classList.toggle('completo', todosObrigatorios);
   }
 
-  btn.disabled = !(hasSignature && todosObrigatorios);
+  if (IS_ETAPA2) {
+    const hasSignature = !!zapSignDocToken || !!document.getElementById('zapsign_doc_token')?.value;
+    btn.disabled = !(hasSignature && todosObrigatorios);
+  } else {
+    // Etapa 1: exige horário de atendimento escolhido (demais campos validados no envio)
+    btn.disabled = !horarioSelecionado;
+  }
 }
 
-function docsObrigatoriosFaltando() {
-  const enviados = new Set(
-    Object.values(uploadedFiles).filter(f => f.done).map(f => f.tipo)
-  );
-  return DOCS_FIXOS.filter(d => d.obrigatorio && !enviados.has(d.tipo)).map(d => d.label);
-}
-
-async function submitForm(e) {
-  e.preventDefault();
-
-  const sessionField = document.getElementById('session_id_field');
-  const csrfField = document.getElementById('csrf_token_field');
-
-  if (sessionField) sessionField.value = SESSION_ID;
-  if (csrfField) csrfField.value = getCookie('csrf_token');
-
-  const requiredFields = ['nome_completo', 'cpf', 'telefone', 'email', 'hospital', 'cargo', 'tempo_servico'];
+function validarCamposObrigatorios(ids) {
   let valid = true;
-  for (const id of requiredFields) {
+  for (const id of ids) {
     const el = document.getElementById(id);
     if (!el) continue;
     if (!el.value.trim()) {
@@ -341,21 +434,40 @@ async function submitForm(e) {
       el.classList.remove('error');
     }
   }
-
   if (!valid) {
     const firstErr = document.querySelector('.error');
     if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  return valid;
+}
+
+// ── Submit: Etapa 1 (cadastro + agendamento) ─────────────────────────────────
+
+async function submitCadastro(e) {
+  e.preventDefault();
+
+  const sessionField = document.getElementById('session_id_field');
+  const csrfField = document.getElementById('csrf_token_field');
+  if (sessionField) sessionField.value = SESSION_ID;
+  if (csrfField) csrfField.value = getCookie('csrf_token');
+
+  const requiredFields = [
+    'nome_completo', 'cpf', 'telefone', 'email',
+    'cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf',
+    'hospital', 'cargo', 'tempo_servico', 'agendamento_data',
+  ];
+  if (!validarCamposObrigatorios(requiredFields)) return;
+
+  if (!document.querySelector('input[name="filiado"]:checked')) {
+    alert('Informe se você é filiado(a) ao SinSaúdeSP.');
     return;
   }
-
-  const faltando = docsObrigatoriosFaltando();
-  if (faltando.length > 0) {
-    alert('Faltam documentos obrigatórios:\n\n• ' + faltando.join('\n• '));
+  if (!document.querySelector('input[name="modalidade_atendimento"]:checked')) {
+    alert('Escolha a modalidade do atendimento (online ou presencial).');
     return;
   }
-
-  if (!zapSignDocToken && !document.getElementById('zapsign_doc_token')?.value) {
-    alert('Por favor, assine o documento de procuração antes de enviar.');
+  if (!horarioSelecionado) {
+    alert('Escolha um horário para o atendimento.');
     return;
   }
 
@@ -363,8 +475,7 @@ async function submitForm(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Enviando cadastro…';
 
-  const form = e.target;
-  const fd = new FormData(form);
+  const fd = new FormData(e.target);
 
   try {
     const resp = await fetch('/api/cadastro', { method: 'POST', body: fd });
@@ -380,7 +491,55 @@ async function submitForm(e) {
   } catch (err) {
     alert(`Erro: ${err.message}`);
     btn.disabled = false;
-    btn.innerHTML = 'Enviar cadastro';
+    btn.innerHTML = 'Confirmar cadastro e agendamento';
+    // Recarrega horários: o escolhido pode ter sido ocupado
+    carregarHorarios();
+    updateSubmitButton();
+  }
+}
+
+// ── Submit: Etapa 2 (documentação + procuração) ──────────────────────────────
+
+async function submitEtapa2(e) {
+  e.preventDefault();
+
+  const sessionField = document.getElementById('session_id_field');
+  const csrfField = document.getElementById('csrf_token_field');
+  if (sessionField) sessionField.value = SESSION_ID;
+  if (csrfField) csrfField.value = getCookie('csrf_token');
+
+  const faltando = docsObrigatoriosFaltando();
+  if (faltando.length > 0) {
+    alert('Faltam documentos obrigatórios:\n\n• ' + faltando.join('\n• '));
+    return;
+  }
+
+  if (!zapSignDocToken && !document.getElementById('zapsign_doc_token')?.value) {
+    alert('Por favor, assine o documento de procuração antes de enviar.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Enviando documentação…';
+
+  const fd = new FormData(e.target);
+
+  try {
+    const resp = await fetch(`/api/etapa2/${ETAPA2_TOKEN}`, { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      throw new Error(data.detail || 'Erro ao enviar documentação');
+    }
+
+    if (data.redirect) {
+      window.location.href = data.redirect;
+    }
+  } catch (err) {
+    alert(`Erro: ${err.message}`);
+    btn.disabled = false;
+    btn.innerHTML = 'Enviar documentação';
     updateSubmitButton();
   }
 }
@@ -408,7 +567,7 @@ async function updateStatus(cadastroId, selectEl) {
       badge.className = `badge badge-${status}`;
       badge.textContent = status.replace('_', ' ');
     }
-    showToast('Status atualizado com sucesso!');
+    showToast('Status atualizado!');
   } catch (err) {
     alert(`Erro: ${err.message}`);
   }
@@ -424,6 +583,19 @@ async function saveNota(cadastroId) {
     });
     if (!resp.ok) throw new Error('Erro ao salvar nota');
     showToast('Nota salva!');
+  } catch (err) {
+    alert(`Erro: ${err.message}`);
+  }
+}
+
+async function liberarEtapa2(cadastroId) {
+  if (!confirm('Liberar a etapa 2 (documentação + procuração) para este cadastro?\nUm e-mail com o link será enviado à pessoa.')) return;
+  try {
+    const resp = await fetch(`/admin/cadastro/${cadastroId}/liberar-etapa2`, { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || 'Erro ao liberar etapa 2');
+    showToast('Etapa 2 liberada! E-mail enviado.');
+    setTimeout(() => location.reload(), 1200);
   } catch (err) {
     alert(`Erro: ${err.message}`);
   }
@@ -450,8 +622,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Masks
   document.getElementById('cpf')?.addEventListener('input', maskCPF);
   document.getElementById('telefone')?.addEventListener('input', maskPhone);
+  const cepEl = document.getElementById('cep');
+  if (cepEl) {
+    cepEl.addEventListener('input', maskCEP);
+    cepEl.addEventListener('blur', buscarCEP);
+  }
 
-  // Pré-seleciona "É filiado?" com a resposta dada na página inicial
+  // Pré-seleciona "É filiado?" se vier na URL
   const filiadoParam = new URLSearchParams(location.search).get('filiado');
   if (filiadoParam === 'sim') {
     const r = document.querySelector('input[name="filiado"][value="true"]');
@@ -461,16 +638,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (r) r.checked = true;
   }
 
-  // Vagas fixas de documentos (cada tipo uma única vez)
-  if (document.getElementById('upload-list')) {
+  // Vagas de documentos
+  if (getUploadList()) {
     DOCS_FIXOS.forEach(def => addDocRow(def));
   }
 
-  // Form submit
-  document.getElementById('cadastro-form')?.addEventListener('submit', submitForm);
-
-  // Adicionar documento extra (tipo "Outro", removível)
+  // Documento extra (apenas etapa 2)
   document.getElementById('add-doc-btn')?.addEventListener('click', () => addDocRow(null));
+
+  // Agenda (etapa 1): limites de data e carregamento de horários
+  const dataInput = document.getElementById('agendamento_data');
+  if (dataInput) {
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    const limite = new Date();
+    limite.setDate(limite.getDate() + 60);
+    dataInput.min = amanha.toISOString().split('T')[0];
+    dataInput.max = limite.toISOString().split('T')[0];
+    dataInput.addEventListener('change', carregarHorarios);
+  }
+
+  // Form submit
+  document.getElementById('cadastro-form')?.addEventListener('submit', submitCadastro);
+  document.getElementById('etapa2-form')?.addEventListener('submit', submitEtapa2);
 
   updateSubmitButton();
 });

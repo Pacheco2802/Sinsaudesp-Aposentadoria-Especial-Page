@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cadastro para Aposentadoria Especial — SinSaúdeSP</title>
+  <title>Cadastro e Agendamento — SinSaúdeSP</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -18,9 +18,9 @@
 
 <!-- Hero -->
 <div class="form-hero">
-  <span class="badge-service">SERVIÇO GRATUITO PARA FILIADOS</span>
-  <h1>Cadastro para Aposentadoria Especial</h1>
-  <p>Preencha seus dados para que nossos advogados analisem seu caso.</p>
+  <span class="badge-service">ANÁLISE GRATUITA PARA TRABALHADORES DA SAÚDE</span>
+  <h1>Cadastro e Agendamento</h1>
+  <p>Preencha seus dados e escolha o melhor dia e horário para o seu atendimento.</p>
 </div>
 
 <!-- Form -->
@@ -61,6 +61,62 @@
       </div>
     </div>
 
+    <!-- Endereço -->
+    <div class="form-card">
+      <div class="form-card-title">
+        <span>📍</span> Endereço
+      </div>
+
+      <div class="field-row">
+        <div class="field-group" style="max-width: 180px;">
+          <label for="cep">CEP <span class="req">*</span></label>
+          <input type="tel" id="cep" name="cep"
+                 placeholder="00000-000" required autocomplete="postal-code"
+                 inputmode="numeric" maxlength="9">
+        </div>
+        <div class="field-group">
+          <label for="logradouro">Endereço (rua, avenida…) <span class="req">*</span></label>
+          <input type="text" id="logradouro" name="logradouro"
+                 placeholder="Rua Exemplo" required autocomplete="address-line1">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group" style="max-width: 140px;">
+          <label for="numero">Número <span class="req">*</span></label>
+          <input type="text" id="numero" name="numero" placeholder="123" required>
+        </div>
+        <div class="field-group">
+          <label for="complemento">Complemento</label>
+          <input type="text" id="complemento" name="complemento" placeholder="Apto, bloco… (opcional)">
+        </div>
+        <div class="field-group">
+          <label for="bairro">Bairro <span class="req">*</span></label>
+          <input type="text" id="bairro" name="bairro" placeholder="Bairro" required>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label for="cidade">Cidade <span class="req">*</span></label>
+          <input type="text" id="cidade" name="cidade" placeholder="Cidade" required>
+        </div>
+        <div class="field-group" style="max-width: 120px;">
+          <label for="uf">UF <span class="req">*</span></label>
+          <select id="uf" name="uf" required>
+            <option value="">UF</option>
+            <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+            <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+            <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+            <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+            <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+            <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+            <option selected>SP</option><option>SE</option><option>TO</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <!-- Dados Profissionais -->
     <div class="form-card">
       <div class="form-card-title">
@@ -97,74 +153,65 @@
           </label>
         </div>
       </div>
+
+      <div class="checkbox-wrap" style="margin-top: 8px;">
+        <input type="checkbox" id="analise_estabilidade" name="analise_estabilidade" value="true">
+        <label for="analise_estabilidade">
+          Desejo também a <strong>análise de estabilidade</strong> no emprego.
+        </label>
+      </div>
     </div>
 
-    <!-- Documentos -->
+    <!-- CNIS (opcional) -->
     <div class="form-card">
       <div class="form-card-title">
-        <span>📎</span> Documentos
-      </div>
-
-      <p style="font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 6px;">
-        Anexe um arquivo em cada item abaixo. Os itens marcados como
-        <strong style="color: #c62828;">Obrigatório</strong> precisam ser enviados para concluir o cadastro.
-        Formatos aceitos: PDF, JPG, PNG. Máximo 10MB por arquivo.
-      </p>
-
-      <div id="upload-progress-msg" class="upload-progress-msg">
-        0 de 3 documentos obrigatórios enviados
-      </div>
-
-      <div id="upload-list" class="upload-list">
-        <!-- rows injected by JS -->
-      </div>
-
-      <button type="button" class="add-doc-btn" id="add-doc-btn">
-        + Adicionar documento extra
-      </button>
-    </div>
-
-    <!-- Procuração Digital -->
-    <div class="form-card">
-      <div class="form-card-title">
-        <span>✍️</span> Procuração Digital
+        <span>📄</span> CNIS <span style="font-weight: 400; font-size: 0.82rem; color: var(--cinza-texto);">(opcional, mas recomendado)</span>
       </div>
 
       <p style="font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 14px;">
-        Leia atentamente o texto da procuração e assine digitalmente para autorizar o sindicato a representá-lo(a).
+        Se você tiver o extrato <strong>CNIS</strong> (Cadastro Nacional de Informações Sociais),
+        anexe aqui — com ele conseguimos fazer uma <strong>pré-análise do seu caso antes mesmo do atendimento</strong>.
+        Você pode obtê-lo no aplicativo ou site <strong>Meu INSS</strong>. Formatos: PDF, JPG, PNG (máx. 10MB).
       </p>
 
-      <div class="procuracao-box">PROCURAÇÃO AD JUDICIA ET EXTRA
+      <div id="upload-list" class="upload-list">
+        <!-- vaga do CNIS injetada pelo JS -->
+      </div>
+    </div>
 
-Pelo presente instrumento particular de procuração, eu, abaixo identificado(a) e qualificado(a), nomeio e constituo como meu(minha) procurador(a) os advogados do Departamento Jurídico do SinSaúdeSP – Sindicato dos Trabalhadores da Saúde de São Paulo, com poderes para o foro em geral, conforme artigo 105 do Código de Processo Civil, podendo propor ações, contestar, recorrer, transigir, desistir, dar e receber quitação, substabelecer com ou sem reservas, e praticar todos os atos necessários ao bom e fiel cumprimento deste mandato, especificamente para:
-
-1. Requerer, instruir e acompanhar o processo de concessão de Aposentadoria Especial por exposição habitual e permanente a agentes biológicos nocivos à saúde, nos termos do art. 57 da Lei nº 8.213/1991;
-2. Apresentar documentos, requerimentos e recursos administrativos perante o INSS;
-3. Representar o outorgante em processos judiciais perante a Justiça Federal e Turmas Recursais;
-4. Praticar todos os demais atos necessários ao fiel cumprimento deste mandato.
-5. Representar o outorgante em audiências, perícias e demais atos processuais.
-
-Esta procuração é válida até a conclusão definitiva do processo administrativo ou judicial referente à aposentadoria especial, podendo ser revogada a qualquer tempo mediante comunicação por escrito.
-
-O presente mandato é outorgado de forma gratuita, sem qualquer ônus para o outorgante, sendo o serviço prestado pelo sindicato como benefício aos seus filiados e representados.</div>
-
-      <div class="checkbox-wrap">
-        <input type="checkbox" id="procuracao_aceite" name="procuracao_aceite" required>
-        <label for="procuracao_aceite">
-          Li e concordo com os termos da procuração acima, autorizando os advogados do SinSaúdeSP a me representar no processo de aposentadoria especial.
-        </label>
+    <!-- Agendamento -->
+    <div class="form-card">
+      <div class="form-card-title">
+        <span>📅</span> Agendamento do Atendimento
       </div>
 
-      <div class="zapsign-section">
-        <div class="zapsign-info">
-          📋 Após aceitar os termos, clique em "Assinar digitalmente" para abrir o ambiente seguro de assinatura.
+      <p style="font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 14px;">
+        Escolha como e quando quer ser atendido(a). Atendimentos em dias úteis.
+      </p>
+
+      <div class="field-group">
+        <label>Modalidade <span class="req">*</span></label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="modalidade_atendimento" value="online" required> 💻 Online (via Teams)
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="modalidade_atendimento" value="presencial"> 🏢 Presencial
+          </label>
         </div>
-        <button type="button" id="btn-iniciar-assinatura" class="btn-secondary"
-                onclick="iniciarAssinatura()">
-          ✍️ Assinar digitalmente
-        </button>
-        <div class="assinatura-confirmada" id="assinatura-confirmada">
-          Documento assinado com sucesso!
+      </div>
+
+      <div class="field-row">
+        <div class="field-group" style="max-width: 220px;">
+          <label for="agendamento_data">Data <span class="req">*</span></label>
+          <input type="date" id="agendamento_data" name="agendamento_data" required>
+        </div>
+        <div class="field-group">
+          <label>Horário <span class="req">*</span></label>
+          <div id="horarios-grid" class="horarios-grid">
+            <span class="horarios-hint">Escolha uma data para ver os horários disponíveis</span>
+          </div>
+          <input type="hidden" name="agendamento_hora" id="agendamento_hora">
         </div>
       </div>
     </div>
@@ -172,34 +219,16 @@ O presente mandato é outorgado de forma gratuita, sem qualquer ônus para o out
     <!-- Hidden fields -->
     <input type="hidden" name="session_id" id="session_id_field">
     <input type="hidden" name="csrf_token" id="csrf_token_field" value="{{ csrf_token }}">
-    <input type="hidden" name="zapsign_doc_token" id="zapsign_doc_token">
 
     <!-- Submit -->
     <div class="submit-area">
       <button type="submit" id="btn-submit" class="btn-submit-main" disabled>
-        Enviar cadastro
+        Confirmar cadastro e agendamento
       </button>
-      <p class="form-privacy">Seus dados estão protegidos e serão utilizados exclusivamente para fins do processo de aposentadoria especial.</p>
+      <p class="form-privacy">Seus dados estão protegidos e serão utilizados exclusivamente para fins da análise e do processo de aposentadoria especial.</p>
     </div>
 
   </form>
-</div>
-
-<!-- ZapSign Modal -->
-<div id="zapsign-modal-overlay">
-  <div id="zapsign-modal">
-    <div class="modal-header">
-      <h3>Assinatura Digital — SinSaúdeSP</h3>
-      <button type="button" class="modal-close" onclick="fecharModalZapSign()" aria-label="Fechar">×</button>
-    </div>
-    <iframe id="zapsign-iframe" src="" allow="camera; microphone; geolocation" title="Assinatura digital ZapSign"></iframe>
-    <div class="modal-footer">
-      <span id="zapsign-status-msg">⏳ Aguardando a assinatura ser concluída…</span>
-      <button type="button" id="btn-confirmar-assinatura" class="btn-primary" onclick="verificarAssinaturaManual()">
-        Já assinei — verificar
-      </button>
-    </div>
-  </div>
 </div>
 
 <script src="/static/js/main.js"></script>
