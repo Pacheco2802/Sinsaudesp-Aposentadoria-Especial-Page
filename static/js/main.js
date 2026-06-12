@@ -451,6 +451,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cpf')?.addEventListener('input', maskCPF);
   document.getElementById('telefone')?.addEventListener('input', maskPhone);
 
+  // Pré-seleciona "É filiado?" com a resposta dada na página inicial
+  const filiadoParam = new URLSearchParams(location.search).get('filiado');
+  if (filiadoParam === 'sim') {
+    const r = document.querySelector('input[name="filiado"][value="true"]');
+    if (r) r.checked = true;
+  } else if (filiadoParam === 'nao') {
+    const r = document.querySelector('input[name="filiado"][value="false"]');
+    if (r) r.checked = true;
+  }
+
   // Vagas fixas de documentos (cada tipo uma única vez)
   if (document.getElementById('upload-list')) {
     DOCS_FIXOS.forEach(def => addDocRow(def));

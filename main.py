@@ -190,8 +190,15 @@ async def require_admin_role(user: AdminUsuario = Depends(get_current_admin_obj)
 # ─── Public pages ─────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
-async def landing(request: Request):
-    return templates.TemplateResponse(request, "landing.html")
+async def selecao(request: Request):
+    return templates.TemplateResponse(request, "selecao.html")
+
+
+@app.get("/inicio", response_class=HTMLResponse)
+async def landing(request: Request, filiado: Optional[str] = None):
+    if filiado not in ("sim", "nao"):
+        filiado = None
+    return templates.TemplateResponse(request, "landing.html", {"filiado": filiado})
 
 
 @app.get("/cadastro", response_class=HTMLResponse)

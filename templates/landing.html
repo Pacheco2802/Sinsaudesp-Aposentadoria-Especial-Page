@@ -14,18 +14,28 @@
   <a href="/" class="logo" aria-label="SinSaúdeSP">
     <img src="/static/img/logo.png" alt="SinSaúdeSP" class="logo-img">
   </a>
-  <a href="/cadastro" class="btn-secondary">Cadastre-se</a>
+  <a href="/cadastro{% if filiado %}?filiado={{ filiado }}{% endif %}" class="btn-secondary">Cadastre-se</a>
 </header>
 
 <!-- Hero -->
 <section class="hero">
   <div class="container">
-    <span class="badge-service">SERVIÇO GRATUITO PARA FILIADOS</span>
+    {% if filiado == 'nao' %}
+    <span class="badge-service">VOCÊ TAMBÉM TEM ESSE DIREITO</span>
+    {% else %}
+    <span class="badge-service">GRATUITO PARA FILIADOS EM DIA</span>
+    {% endif %}
     <h1>Aposentadoria Especial por</h1>
     <div class="hero-sub">Perigo Biológico</div>
+    {% if filiado == 'nao' %}
+    <p>Trabalhadores da saúde expostos a agentes biológicos têm direito à aposentadoria especial com apenas 25 anos de contribuição. Filiando-se ao SinSaúdeSP, você tem a assessoria jurídica completa do sindicato, sem pagar honorários advocatícios.</p>
+    <a href="/cadastro?filiado=nao" class="btn-primary">Quero garantir meu direito</a>
+    <p class="hero-note">Cadastre-se em minutos. Nossa equipe entra em contato e te orienta sobre a filiação e todo o processo.</p>
+    {% else %}
     <p>Trabalhadores da saúde expostos a agentes biológicos têm direito à aposentadoria especial com apenas 25 anos de contribuição. O SinSaúdeSP cuida de tudo, sem custos para você.</p>
-    <a href="/cadastro" class="btn-primary">Garanta sua aposentadoria especial agora!</a>
-    <p class="hero-note">Sem custos. Sem burocracia. Advogados especializados do sindicato cuidam de tudo.</p>
+    <a href="/cadastro{% if filiado %}?filiado={{ filiado }}{% endif %}" class="btn-primary">Garanta sua aposentadoria especial agora!</a>
+    <p class="hero-note">Sem custos para filiados em dia com as contribuições. Sem burocracia. Advogados especializados do sindicato cuidam de tudo.</p>
+    {% endif %}
   </div>
 </section>
 
@@ -103,13 +113,51 @@
   </div>
 </section>
 
+{% if filiado == 'nao' %}
+<!-- Caminho do não filiado -->
+<section class="section section-gray">
+  <div class="container">
+    <h2 class="section-title">Ainda não é filiado? Veja como é simples</h2>
+    <p class="section-subtitle">Por lei, a assessoria jurídica gratuita é um benefício exclusivo dos filiados em dia com as contribuições. A boa notícia: a filiação é rápida e você já sai com o processo encaminhado.</p>
+    <div class="steps">
+      <div class="step-item">
+        <div class="step-circle">1</div>
+        <div class="step-content">
+          <h3>Cadastre-se agora</h3>
+          <p>Preencha o formulário com seus dados e documentos, em minutos, pelo celular.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-circle">2</div>
+        <div class="step-content">
+          <h3>Filie-se ao SinSaúdeSP</h3>
+          <p>Nossa equipe entra em contato e te orienta sobre a filiação, sem complicação.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-circle">3</div>
+        <div class="step-content">
+          <h3>Atendimento gratuito</h3>
+          <p>Como filiado(a) em dia, você tem a assessoria jurídica completa sem pagar honorários — e ainda conta com todos os demais benefícios do sindicato.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 <!-- CTA final -->
 <section class="cta-section">
   <div class="container">
     <div class="cta-icon">👨‍⚕️👩‍⚕️</div>
     <h2>Não perca seus direitos!</h2>
-    <p>Advogados oportunistas cobram caro por esse serviço. No SinSaúdeSP, filiados têm acesso gratuito à assessoria jurídica completa.</p>
-    <a href="/cadastro" class="btn-primary">Garanta sua aposentadoria especial agora!</a>
+    {% if filiado == 'nao' %}
+    <p>Advogados particulares cobram caro por esse serviço. Filiando-se ao SinSaúdeSP, você tem a assessoria jurídica completa do sindicato sem pagar honorários — além de todos os outros benefícios da filiação.</p>
+    <a href="/cadastro?filiado=nao" class="btn-primary">Quero garantir meu direito</a>
+    {% else %}
+    <p>Advogados particulares cobram caro por esse serviço. No SinSaúdeSP, filiados em dia têm acesso gratuito à assessoria jurídica completa.</p>
+    <a href="/cadastro{% if filiado %}?filiado={{ filiado }}{% endif %}" class="btn-primary">Garanta sua aposentadoria especial agora!</a>
+    {% endif %}
   </div>
 </section>
 
