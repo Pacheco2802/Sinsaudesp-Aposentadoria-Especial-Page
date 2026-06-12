@@ -88,6 +88,17 @@
         {% endif %}
       </div>
 
+      <!-- Nota interna -->
+      <div class="detail-card">
+        <h3>📝 Nota interna</h3>
+        <div class="field-group">
+          <textarea id="nota-input" class="nota-input" placeholder="Adicione observações internas sobre este caso…">{{ cadastro.nota_interna or '' }}</textarea>
+        </div>
+        <button type="button" class="btn-secondary" onclick="saveNota({{ cadastro.id }})">
+          Salvar nota
+        </button>
+      </div>
+
       <!-- Endereço -->
       <div class="detail-card">
         <h3>📍 Endereço</h3>
@@ -151,10 +162,16 @@
         <p style="font-size: 0.9rem; color: #F57F17; font-weight: 600;">
           ⏳ Liberada em {{ cadastro.etapa2_liberada_em.strftime('%d/%m/%Y às %H:%M') }} — aguardando a pessoa enviar
         </p>
-        <button type="button" class="btn-outline" onclick="liberarEtapa2({{ cadastro.id }})"
-                style="font-size: 0.8rem; padding: 6px 14px; margin-top: 8px;">
-          Reenviar e-mail com o link
-        </button>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+          <button type="button" class="btn-secondary" onclick="copiarLinkEtapa2('{{ cadastro.etapa2_token }}')"
+                  style="font-size: 0.8rem; padding: 6px 14px;">
+            📋 Copiar link (enviar por WhatsApp)
+          </button>
+          <button type="button" class="btn-outline" onclick="liberarEtapa2({{ cadastro.id }})"
+                  style="font-size: 0.8rem; padding: 6px 14px;">
+            Reenviar e-mail
+          </button>
+        </div>
         {% else %}
         <p style="font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 10px;">
           Após realizar o atendimento, libere a etapa 2 para a pessoa enviar a documentação completa e assinar a procuração. Um e-mail com o link será enviado automaticamente.
@@ -220,17 +237,6 @@
         <p style="font-size: 0.78rem; color: var(--cinza-texto); margin-top: 4px;">
           O status é atualizado automaticamente ao selecionar.
         </p>
-      </div>
-
-      <!-- Nota interna -->
-      <div class="detail-card">
-        <h3>📝 Nota interna</h3>
-        <div class="field-group">
-          <textarea id="nota-input" class="nota-input" placeholder="Adicione observações internas sobre este caso…">{{ cadastro.nota_interna or '' }}</textarea>
-        </div>
-        <button type="button" class="btn-secondary" onclick="saveNota({{ cadastro.id }})">
-          Salvar nota
-        </button>
       </div>
 
     </div>

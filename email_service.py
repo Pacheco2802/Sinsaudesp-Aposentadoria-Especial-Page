@@ -23,8 +23,9 @@ def _mask_cpf(cpf: str) -> str:
 
 async def _send(to: str, subject: str, html_body: str) -> None:
     if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, to]):
-        logger.warning("Email not configured or missing recipient, skipping send")
-        return
+        raise RuntimeError(
+            "SMTP não configurado (verifique SMTP_HOST, SMTP_USER e SMTP_PASSWORD nas variáveis)"
+        )
 
     message = MIMEMultipart("alternative")
     message["From"] = f"SinSaúdeSP <{SMTP_USER}>"
@@ -117,7 +118,7 @@ async def send_admin_notification(
         logger.error("Failed to send admin notification for cadastro %s: %s", cadastro_id, e)
 
 
-async def send_etapa2_email(to_email: str, nome: str, link: str) -> None:
+async def send_etapa2_email(to_email: str, nome: str, link: str) -> bool:
     subject = "Próximo passo: envie seus documentos e assine a procuração — SinSaúdeSP"
     body = f"""
     <html><body style="font-family: Arial, sans-serif; color: #333;">
@@ -142,5 +143,7 @@ async def send_etapa2_email(to_email: str, nome: str, link: str) -> None:
     """
     try:
         await _send(to_email, subject, body)
+        return True
     except Exception as e:
         logger.error("Failed to send etapa2 email to %s: %s", to_email, e)
+        return False

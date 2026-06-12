@@ -87,7 +87,12 @@
           {% for c in cadastros %}
           <tr>
             <td style="color: var(--cinza-texto); font-size: 0.8rem;">{{ c.id }}</td>
-            <td><strong>{{ c.nome_completo }}</strong></td>
+            <td>
+              <strong>{{ c.nome_completo }}</strong>
+              {% if c.nota_interna %}
+              <span title="{{ c.nota_interna }}" style="cursor: help;">📝</span>
+              {% endif %}
+            </td>
             <td style="font-family: monospace; font-size: 0.85rem;">{{ c.cpf }}</td>
             <td>{{ c.hospital }}</td>
             <td>

@@ -594,10 +594,32 @@ async function liberarEtapa2(cadastroId) {
     const resp = await fetch(`/admin/cadastro/${cadastroId}/liberar-etapa2`, { method: 'POST' });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.detail || 'Erro ao liberar etapa 2');
-    showToast('Etapa 2 liberada! E-mail enviado.');
-    setTimeout(() => location.reload(), 1200);
+
+    if (data.email_enviado) {
+      showToast('Etapa 2 liberada! E-mail enviado.');
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      alert(
+        'A etapa 2 foi liberada, mas o E-MAIL NÃO PÔDE SER ENVIADO.\n\n' +
+        'Verifique as variáveis SMTP no Railway (logs do serviço mostram o motivo).\n\n' +
+        'Enquanto isso, copie o link a seguir e envie manualmente para a pessoa (ex: WhatsApp).'
+      );
+      window.prompt('Link da etapa 2 — Ctrl+C para copiar:', data.link);
+      location.reload();
+    }
   } catch (err) {
     alert(`Erro: ${err.message}`);
+  }
+}
+
+function copiarLinkEtapa2(token) {
+  const link = `${window.location.origin}/etapa2/${token}`;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(link)
+      .then(() => showToast('Link copiado!'))
+      .catch(() => window.prompt('Link da etapa 2 — Ctrl+C para copiar:', link));
+  } else {
+    window.prompt('Link da etapa 2 — Ctrl+C para copiar:', link);
   }
 }
 

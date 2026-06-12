@@ -721,6 +721,7 @@ async def api_etapa2_submit(
 
 @app.post("/admin/cadastro/{cadastro_id}/liberar-etapa2")
 async def admin_liberar_etapa2(
+    request: Request,
     cadastro_id: int,
     admin_email: str = Depends(get_current_admin),
     db=Depends(get_db),
@@ -737,11 +738,10 @@ async def admin_liberar_etapa2(
     cadastro.updated_at = datetime.now()
     await db.commit()
 
-    link = f"{BASE_URL}/etapa2/{cadastro.etapa2_token}"
-    asyncio.create_task(
-        send_etapa2_email(cadastro.email, cadastro.nome_completo, link)
-    )
-    return {"ok": True, "link": link}
+    base = BASE_URL or str(request.base_url).rstrip("/")
+    link = f"{base}/etapa2/{cadastro.etapa2_token}"
+    email_enviado = await send_etapa2_email(cadastro.email, cadastro.nome_completo, link)
+    return {"ok": True, "email_enviado": email_enviado, "link": link}
 
 
 # ─── Admin auth ───────────────────────────────────────────────────────────────
