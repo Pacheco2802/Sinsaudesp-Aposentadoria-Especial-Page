@@ -32,7 +32,7 @@ def _mask_cpf(cpf: str) -> str:
     return "***.***.***-**"
 
 
-async def _send(to: str, subject: str, html_body: str) -> None:
+async def _send(to: str, subject: str, html_body: str, text_body: str = "") -> None:
     if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, to]):
         raise RuntimeError(
             "SMTP não configurado (verifique SMTP_HOST, SMTP_USER e SMTP_PASSWORD nas variáveis)"
@@ -42,6 +42,10 @@ async def _send(to: str, subject: str, html_body: str) -> None:
     message["From"] = f"SinSaúdeSP <{SMTP_USER}>"
     message["To"] = to
     message["Subject"] = subject
+    message["Reply-To"] = SMTP_USER
+    # Versão texto puro primeiro (reduz pontuação de spam), HTML por último (preferida)
+    if text_body:
+        message.attach(MIMEText(text_body, "plain", "utf-8"))
     message.attach(MIMEText(html_body, "html", "utf-8"))
 
     kwargs: dict = {
@@ -90,8 +94,17 @@ async def send_confirmation_email(
     </div>
     </body></html>
     """
+    text = (
+        f"Olá, {nome}.\n\n"
+        f"Recebemos seu cadastro para análise de Aposentadoria Especial por Perigo Biológico.\n\n"
+        f"Protocolo: #{protocolo:06d}\n"
+        f"Atendimento agendado: {agendamento}\n"
+        f"Modalidade: {modalidade_str}\n\n"
+        f"Se precisar remarcar, basta responder este e-mail ou falar com o sindicato.\n\n"
+        f"SinSaúdeSP — Sindicato dos Trabalhadores da Saúde de São Paulo"
+    )
     try:
-        await _send(to_email, subject, body)
+        await _send(to_email, subject, body, text)
     except Exception as e:
         logger.error("Failed to send confirmation email to %s: %s", to_email, e)
 
@@ -123,8 +136,19 @@ async def send_admin_notification(
     </div>
     </body></html>
     """
+    text = (
+        f"Novo cadastro recebido\n\n"
+        f"Nome: {nome}\n"
+        f"CPF: {cpf_masked}\n"
+        f"Hospital/Empresa: {hospital}\n"
+        f"Cargo: {cargo}\n"
+        f"Filiado: {filiado_str}\n"
+        f"Atendimento: {agendamento} — {modalidade_str}\n"
+        f"Protocolo: #{cadastro_id:06d}\n\n"
+        f"Ver no painel: {BASE_URL}/admin/cadastro/{cadastro_id}"
+    )
     try:
-        await _send(ADMIN_EMAIL, subject, body)
+        await _send(ADMIN_EMAIL, subject, body, text)
     except Exception as e:
         logger.error("Failed to send admin notification for cadastro %s: %s", cadastro_id, e)
 
@@ -152,8 +176,16 @@ async def send_etapa2_email(to_email: str, nome: str, link: str) -> bool:
     </div>
     </body></html>
     """
+    text = (
+        f"Olá, {nome}.\n\n"
+        f"Conforme conversado no seu atendimento, chegou a hora de enviar a documentação completa "
+        f"e assinar a procuração digital para darmos andamento ao seu processo de Aposentadoria Especial.\n\n"
+        f"Acesse o link abaixo para enviar os documentos e assinar:\n{link}\n\n"
+        f"Este link é pessoal e exclusivo seu. Não compartilhe com outras pessoas.\n\n"
+        f"SinSaúdeSP — Sindicato dos Trabalhadores da Saúde de São Paulo"
+    )
     try:
-        await _send(to_email, subject, body)
+        await _send(to_email, subject, body, text)
         return True
     except Exception as e:
         logger.error("Failed to send etapa2 email to %s: %s", to_email, e)
