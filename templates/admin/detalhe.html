@@ -24,7 +24,15 @@
 
   <main class="admin-main">
 
-    <a href="/admin" class="admin-back">← Voltar ao dashboard</a>
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <a href="/admin" class="admin-back">← Voltar ao dashboard</a>
+      {% if is_admin %}
+      <button type="button" class="btn-outline" onclick="excluirCadastro({{ cadastro.id }})"
+              style="font-size: 0.78rem; padding: 6px 14px; color: #c62828; border-color: #c62828;">
+        🗑 Excluir cadastro
+      </button>
+      {% endif %}
+    </div>
 
     <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 24px; flex-wrap: wrap;">
       <h2 style="font-size: 1.3rem; font-weight: 700;">

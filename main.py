@@ -751,6 +751,35 @@ async def admin_liberar_etapa2(
     return {"ok": True, "email_enviado": email_enviado, "link": link}
 
 
+@app.post("/admin/cadastro/{cadastro_id}/excluir")
+async def admin_excluir_cadastro(
+    cadastro_id: int,
+    current=Depends(require_admin_role),
+    db=Depends(get_db),
+):
+    cadastro = await db.get(Cadastro, cadastro_id)
+    if not cadastro:
+        raise HTTPException(status_code=404, detail="Cadastro não encontrado")
+
+    # Remove os documentos do armazenamento
+    if USE_S3:
+        s3 = _s3()
+        resp = await asyncio.to_thread(
+            s3.list_objects_v2, Bucket=S3_BUCKET, Prefix=f"documentos/{cadastro_id}/"
+        )
+        for obj in resp.get("Contents", []):
+            await asyncio.to_thread(s3.delete_object, Bucket=S3_BUCKET, Key=obj["Key"])
+    else:
+        doc_dir = DOCS_DIR / str(cadastro_id)
+        if doc_dir.exists():
+            shutil.rmtree(doc_dir, ignore_errors=True)
+
+    # Remove o cadastro (documentos no banco caem por cascade)
+    await db.delete(cadastro)
+    await db.commit()
+    return {"ok": True}
+
+
 # ─── Admin auth ───────────────────────────────────────────────────────────────
 
 @app.get("/admin/login", response_class=HTMLResponse)

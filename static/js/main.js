@@ -612,6 +612,19 @@ async function liberarEtapa2(cadastroId) {
   }
 }
 
+async function excluirCadastro(cadastroId) {
+  if (!confirm('Excluir este cadastro PERMANENTEMENTE?\n\nIsso apaga os dados e todos os documentos enviados. Esta ação não pode ser desfeita.')) return;
+  try {
+    const resp = await fetch(`/admin/cadastro/${cadastroId}/excluir`, { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || 'Erro ao excluir cadastro');
+    showToast('Cadastro excluído.');
+    setTimeout(() => { window.location.href = '/admin'; }, 1000);
+  } catch (err) {
+    alert(`Erro: ${err.message}`);
+  }
+}
+
 function copiarLinkEtapa2(token) {
   const link = `${window.location.origin}/etapa2/${token}`;
   if (navigator.clipboard?.writeText) {
