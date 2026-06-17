@@ -825,7 +825,20 @@ async def api_cadastro(
 
     # Valida o horário de agendamento
     dia = _validar_data_agenda(agendamento_data)
-    if agendamento_hora not in AGENDA_HORARIOS:
+
+    bloqueio_dia = await db.scalar(
+        select(BloqueioAgenda).where(BloqueioAgenda.data == dia.date())
+    )
+    if bloqueio_dia:
+        raise HTTPException(status_code=400, detail="Esta data não tem atendimento disponível")
+
+    cfg = await db.scalar(select(ConfigAgenda).where(ConfigAgenda.id == 1))
+    slots_validos = _gerar_horarios(
+        cfg.hora_inicio if cfg else _AGENDA_CONFIG_DEFAULT["hora_inicio"],
+        cfg.hora_fim if cfg else _AGENDA_CONFIG_DEFAULT["hora_fim"],
+        cfg.intervalo_minutos if cfg else _AGENDA_CONFIG_DEFAULT["intervalo_minutos"],
+    )
+    if agendamento_hora not in slots_validos:
         raise HTTPException(status_code=400, detail="Horário inválido")
     hora_h, hora_m = map(int, agendamento_hora.split(":"))
     slot = dia.replace(hour=hora_h, minute=hora_m)
