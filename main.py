@@ -315,6 +315,11 @@ async def cadastro_page(request: Request):
     return response
 
 
+@app.get("/politica-privacidade", response_class=HTMLResponse)
+async def politica_privacidade(request: Request):
+    return templates.TemplateResponse(request, "politica-privacidade.html")
+
+
 @app.get("/obrigado", response_class=HTMLResponse)
 async def obrigado(
     request: Request,
