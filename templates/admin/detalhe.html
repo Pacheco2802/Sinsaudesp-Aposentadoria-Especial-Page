@@ -75,12 +75,30 @@
           </span>
         </div>
         <div class="info-row">
+          <span class="info-label">Estado civil</span>
+          <span class="info-value">{{ cadastro.estado_civil or '—' }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Nacionalidade</span>
+          <span class="info-value">{{ cadastro.nacionalidade or '—' }}</span>
+        </div>
+        <div class="info-row">
           <span class="info-label">Filiado ao SinSaúdeSP</span>
           <span class="info-value">
             {% if cadastro.filiado %}
             <strong style="color: var(--verde-principal);">Sim</strong>
             {% else %}
             <span style="color: var(--cinza-texto);">Não</span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Benefício de outro regime</span>
+          <span class="info-value">
+            {% if cadastro.recebe_outro_beneficio %}
+            <strong style="color: #F57F17;">Recebe</strong>
+            {% else %}
+            <span style="color: var(--cinza-texto);">Não recebe</span>
             {% endif %}
           </span>
         </div>

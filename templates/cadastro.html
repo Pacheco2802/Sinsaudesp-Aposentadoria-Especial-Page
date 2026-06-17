@@ -59,6 +59,26 @@
         <input type="email" id="email" name="email"
                placeholder="seu@email.com" required autocomplete="email">
       </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label for="estado_civil">Estado civil <span class="req">*</span></label>
+          <select id="estado_civil" name="estado_civil" required>
+            <option value="">Selecione…</option>
+            <option>Solteiro(a)</option>
+            <option>Casado(a)</option>
+            <option>Divorciado(a)</option>
+            <option>Viúvo(a)</option>
+            <option>União estável</option>
+            <option>Separado(a)</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="nacionalidade">Nacionalidade <span class="req">*</span></label>
+          <input type="text" id="nacionalidade" name="nacionalidade"
+                 value="Brasileira" placeholder="Ex: Brasileira" required>
+        </div>
+      </div>
     </div>
 
     <!-- Endereço -->
@@ -157,8 +177,20 @@
       <div class="checkbox-wrap" style="margin-top: 8px;">
         <input type="checkbox" id="analise_estabilidade" name="analise_estabilidade" value="true">
         <label for="analise_estabilidade">
-          Desejo também a <strong>análise de estabilidade</strong> no emprego.
+          Desejo também a <strong>análise de estabilidade</strong>.
         </label>
+      </div>
+
+      <div class="field-group" style="margin-top: 14px;">
+        <label>Recebe aposentadoria ou pensão de outro regime de previdência? <span class="req">*</span></label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="recebe_outro_beneficio" value="false" required checked> Não recebo
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="recebe_outro_beneficio" value="true"> Recebo
+          </label>
+        </div>
       </div>
     </div>
 

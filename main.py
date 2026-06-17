@@ -46,6 +46,8 @@ from schemas import (
 )
 from zapsign import consultar_documento as zapsign_consultar
 from zapsign import criar_documento as zapsign_criar
+from zapsign import criar_via_modelo as zapsign_criar_modelo
+from zapsign import usar_modelo as zapsign_usar_modelo
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -151,6 +153,9 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS etapa2_token VARCHAR(64)",
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS etapa2_liberada_em TIMESTAMP",
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS etapa2_concluida_em TIMESTAMP",
+            "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS estado_civil VARCHAR(30)",
+            "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS nacionalidade VARCHAR(40)",
+            "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS recebe_outro_beneficio BOOLEAN NOT NULL DEFAULT false",
         ):
             await conn.execute(text(ddl))
     logger.info("Database tables created/verified")
@@ -254,6 +259,37 @@ async def obrigado(
 
 # ─── ZapSign ──────────────────────────────────────────────────────────────────
 
+def _kit_campos(c: Cadastro) -> dict:
+    """Monta os valores que substituem as variáveis do modelo (kit) na ZapSign.
+
+    As chaves precisam ser idênticas às variáveis definidas no modelo da ZapSign.
+    "X" marca caixas de seleção; "" deixa em branco.
+    """
+    endereco = c.logradouro or ""
+    return {
+        "NOME COMPLETO": c.nome_completo,
+        "CPF": c.cpf,
+        "ESTADO CIVIL": c.estado_civil or "",
+        "NACIONALIDADE": c.nacionalidade or "",
+        "PROFISSAO": c.cargo or "",
+        "TELEFONE": c.telefone or "",
+        "EMAIL": c.email or "",
+        "LOGRADOURO": endereco,
+        "NUMERO": c.numero or "",
+        "COMPLEMENTO": c.complemento or "",
+        "BAIRRO": c.bairro or "",
+        "CIDADE": c.cidade or "",
+        "ESTADO": c.uf or "",
+        "CEP": c.cep or "",
+        "DATA": datetime.now().strftime("%d/%m/%Y"),
+        # Fins específicos: sempre "Requerer benefícios, revisão e interpor recursos"
+        "FIM REQUERER BENEFICIOS": "X",
+        # Declaração de recebimento de benefício de outro regime
+        "NAO RECEBE OUTRO REGIME": "" if c.recebe_outro_beneficio else "X",
+        "RECEBE OUTRO REGIME": "X" if c.recebe_outro_beneficio else "",
+    }
+
+
 @app.post("/api/etapa2/{token}/zapsign")
 @limiter.limit("30/hour")
 async def api_etapa2_zapsign(request: Request, token: str, db=Depends(get_db)):
@@ -261,8 +297,13 @@ async def api_etapa2_zapsign(request: Request, token: str, db=Depends(get_db)):
     if not cadastro or cadastro.etapa2_concluida_em:
         raise HTTPException(status_code=404, detail="Link inválido ou já utilizado")
     try:
-        pdf_bytes = generate_procuration_pdf(cadastro.nome_completo, cadastro.cpf)
-        result = await zapsign_criar(cadastro.nome_completo, cadastro.cpf, pdf_bytes)
+        if zapsign_usar_modelo():
+            result = await zapsign_criar_modelo(
+                cadastro.nome_completo, cadastro.email, _kit_campos(cadastro)
+            )
+        else:
+            pdf_bytes = generate_procuration_pdf(cadastro.nome_completo, cadastro.cpf)
+            result = await zapsign_criar(cadastro.nome_completo, cadastro.cpf, pdf_bytes)
         return result
     except Exception as e:
         logger.error("ZapSign create error: %s", e)
@@ -527,6 +568,9 @@ async def api_cadastro(
     cargo: str = Form(...),
     tempo_servico: str = Form(...),
     filiado: str = Form(...),
+    estado_civil: str = Form(...),
+    nacionalidade: str = Form(...),
+    recebe_outro_beneficio: str = Form("false"),
     cep: str = Form(...),
     logradouro: str = Form(...),
     numero: str = Form(...),
@@ -555,6 +599,7 @@ async def api_cadastro(
 
     filiado_bool = filiado.lower() in ("true", "1", "sim", "yes", "on")
     estabilidade_bool = analise_estabilidade.lower() in ("true", "1", "sim", "yes", "on")
+    outro_beneficio_bool = recebe_outro_beneficio.lower() in ("true", "1", "sim", "yes", "on")
 
     # Pydantic validation
     try:
@@ -568,6 +613,9 @@ async def api_cadastro(
             tempo_servico=tempo_servico,
             filiado=filiado_bool,
             analise_estabilidade=estabilidade_bool,
+            estado_civil=estado_civil,
+            nacionalidade=nacionalidade,
+            recebe_outro_beneficio=outro_beneficio_bool,
             cep=cep,
             logradouro=logradouro,
             numero=numero,
@@ -608,6 +656,9 @@ async def api_cadastro(
         cargo=data.cargo,
         tempo_servico=data.tempo_servico,
         filiado=data.filiado,
+        estado_civil=data.estado_civil,
+        nacionalidade=data.nacionalidade,
+        recebe_outro_beneficio=data.recebe_outro_beneficio,
         cep=data.cep,
         logradouro=data.logradouro,
         numero=data.numero,

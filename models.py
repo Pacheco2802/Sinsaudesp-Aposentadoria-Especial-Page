@@ -20,6 +20,12 @@ class Cadastro(Base):
     tempo_servico: Mapped[str] = mapped_column(String(100), nullable=False)
     filiado: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
+    # Dados para a procuração / kit (INSS)
+    estado_civil: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    nacionalidade: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    # True = recebe aposentadoria/pensão de outro regime de previdência
+    recebe_outro_beneficio: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+
     # Endereço completo
     cep: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
     logradouro: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

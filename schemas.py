@@ -27,6 +27,9 @@ class CadastroCreate(BaseModel):
     tempo_servico: str
     filiado: bool
     analise_estabilidade: bool = False
+    estado_civil: str
+    nacionalidade: str
+    recebe_outro_beneficio: bool = False
     cep: str
     logradouro: str
     numero: str
@@ -70,6 +73,23 @@ class CadastroCreate(BaseModel):
             raise ValueError("Campo obrigatório")
         if len(v) > 255:
             raise ValueError("Texto muito longo")
+        return v
+
+    @field_validator("estado_civil")
+    @classmethod
+    def validate_estado_civil(cls, v: str) -> str:
+        v = v.strip()
+        validos = {"Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União estável", "Separado(a)"}
+        if v not in validos:
+            raise ValueError("Estado civil inválido")
+        return v
+
+    @field_validator("nacionalidade")
+    @classmethod
+    def validate_nacionalidade(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3 or len(v) > 40:
+            raise ValueError("Nacionalidade inválida")
         return v
 
     @field_validator("cep")
