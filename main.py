@@ -6,7 +6,7 @@ import secrets
 import shutil
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -38,7 +38,7 @@ from email_service import (
     send_lembrete_email,
     smtp_status,
 )
-from models import AdminUsuario, Cadastro, Documento, EventoSessao, Lead
+from models import AdminUsuario, BloqueioAgenda, Cadastro, ConfigAgenda, Documento, EventoSessao, Lead
 from pdf_generator import generate_procuration_pdf
 from schemas import (
     CadastroCreate,
@@ -231,6 +231,24 @@ async def lifespan(app: FastAPI):
             )""",
             "CREATE INDEX IF NOT EXISTS ix_eventos_session_id ON eventos_sessao(session_id)",
             "CREATE INDEX IF NOT EXISTS ix_eventos_tipo ON eventos_sessao(tipo)",
+            # Tabelas de configuração da agenda
+            """CREATE TABLE IF NOT EXISTS config_agenda (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                hora_inicio VARCHAR(5) NOT NULL DEFAULT '09:00',
+                hora_fim VARCHAR(5) NOT NULL DEFAULT '16:00',
+                intervalo_minutos INTEGER NOT NULL DEFAULT 60,
+                atualizado_em TIMESTAMP NOT NULL DEFAULT now(),
+                atualizado_por VARCHAR(255) NOT NULL DEFAULT 'sistema'
+            )""",
+            "INSERT INTO config_agenda (id) VALUES (1) ON CONFLICT DO NOTHING",
+            """CREATE TABLE IF NOT EXISTS bloqueios_agenda (
+                id SERIAL PRIMARY KEY,
+                data DATE NOT NULL UNIQUE,
+                motivo TEXT,
+                criado_em TIMESTAMP NOT NULL DEFAULT now(),
+                criado_por VARCHAR(255) NOT NULL DEFAULT 'sistema'
+            )""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_bloqueios_data ON bloqueios_agenda(data)",
         ):
             await conn.execute(text(ddl))
     logger.info("Database tables created/verified")
@@ -656,8 +674,18 @@ async def _mover_documentos_sessao(db, session_id: str, cadastro_id: int) -> int
 
 # ─── Agenda de atendimentos ───────────────────────────────────────────────────
 
-AGENDA_HORARIOS = ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"]
 AGENDA_DIAS_JANELA = 60  # agendamento permitido até N dias à frente
+_AGENDA_CONFIG_DEFAULT = {"hora_inicio": "09:00", "hora_fim": "16:00", "intervalo_minutos": 60}
+
+
+def _gerar_horarios(hora_inicio: str, hora_fim: str, intervalo_min: int) -> list[str]:
+    inicio = datetime.strptime(hora_inicio, "%H:%M")
+    fim = datetime.strptime(hora_fim, "%H:%M")
+    slots, atual = [], inicio
+    while atual <= fim:
+        slots.append(atual.strftime("%H:%M"))
+        atual += timedelta(minutes=intervalo_min)
+    return slots
 
 
 def _validar_data_agenda(data_str: str) -> datetime:
@@ -680,6 +708,26 @@ def _validar_data_agenda(data_str: str) -> datetime:
 async def api_agenda_horarios(request: Request, data: str, db=Depends(get_db)):
     dia = _validar_data_agenda(data)
 
+    # Verifica se o dia está bloqueado
+    bloqueio = await db.scalar(
+        select(BloqueioAgenda).where(BloqueioAgenda.data == dia.date())
+    )
+    if bloqueio:
+        return {
+            "data": data,
+            "bloqueado": True,
+            "motivo": bloqueio.motivo,
+            "horarios": [],
+        }
+
+    # Carrega configuração (usa padrão se ainda não configurado)
+    config = await db.scalar(select(ConfigAgenda).where(ConfigAgenda.id == 1))
+    hora_inicio = config.hora_inicio if config else _AGENDA_CONFIG_DEFAULT["hora_inicio"]
+    hora_fim = config.hora_fim if config else _AGENDA_CONFIG_DEFAULT["hora_fim"]
+    intervalo = config.intervalo_minutos if config else _AGENDA_CONFIG_DEFAULT["intervalo_minutos"]
+
+    horarios_slot = _gerar_horarios(hora_inicio, hora_fim, intervalo)
+
     inicio = dia
     fim = dia + timedelta(days=1)
     result = await db.execute(
@@ -691,9 +739,8 @@ async def api_agenda_horarios(request: Request, data: str, db=Depends(get_db)):
 
     return {
         "data": data,
-        "horarios": [
-            {"hora": h, "disponivel": h not in ocupados} for h in AGENDA_HORARIOS
-        ],
+        "bloqueado": False,
+        "horarios": [{"hora": h, "disponivel": h not in ocupados} for h in horarios_slot],
     }
 
 
@@ -1029,6 +1076,109 @@ async def admin_logout():
     response = RedirectResponse(url="/admin/login", status_code=302)
     response.delete_cookie("access_token")
     return response
+
+
+# ─── Admin: configuração da agenda ────────────────────────────────────────────
+
+@app.get("/admin/agenda", response_class=HTMLResponse)
+async def admin_agenda_page(
+    request: Request,
+    msg: Optional[str] = None,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    config = await db.scalar(select(ConfigAgenda).where(ConfigAgenda.id == 1))
+    result = await db.execute(
+        select(BloqueioAgenda).order_by(BloqueioAgenda.data.asc())
+    )
+    bloqueios = result.scalars().all()
+    cfg_hi = config.hora_inicio if config else _AGENDA_CONFIG_DEFAULT["hora_inicio"]
+    cfg_hf = config.hora_fim if config else _AGENDA_CONFIG_DEFAULT["hora_fim"]
+    cfg_iv = config.intervalo_minutos if config else _AGENDA_CONFIG_DEFAULT["intervalo_minutos"]
+    hoje = date.today()
+    return templates.TemplateResponse(request, "admin/agenda.html", {
+        "config": config,
+        "bloqueios": bloqueios,
+        "horarios_preview": _gerar_horarios(cfg_hi, cfg_hf, cfg_iv),
+        "hoje": hoje.isoformat(),
+        "hoje_date": hoje,
+        "admin_email": current.email,
+        "is_admin": current.papel == "admin",
+        "msg": msg,
+    })
+
+
+@app.post("/admin/api/agenda/config")
+async def admin_update_agenda_config(
+    request: Request,
+    hora_inicio: str = Form(...),
+    hora_fim: str = Form(...),
+    intervalo_minutos: int = Form(...),
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    import re
+    if not re.match(r"^\d{2}:\d{2}$", hora_inicio) or not re.match(r"^\d{2}:\d{2}$", hora_fim):
+        return RedirectResponse("/admin/agenda?msg=Formato+de+hora+inv%C3%A1lido", status_code=303)
+    if not (15 <= intervalo_minutos <= 480):
+        return RedirectResponse("/admin/agenda?msg=Intervalo+deve+ser+entre+15+e+480+minutos", status_code=303)
+    if datetime.strptime(hora_inicio, "%H:%M") >= datetime.strptime(hora_fim, "%H:%M"):
+        return RedirectResponse("/admin/agenda?msg=Hora+in%C3%ADcio+deve+ser+anterior+%C3%A0+hora+fim", status_code=303)
+
+    config = await db.scalar(select(ConfigAgenda).where(ConfigAgenda.id == 1))
+    if not config:
+        config = ConfigAgenda(id=1)
+        db.add(config)
+    config.hora_inicio = hora_inicio
+    config.hora_fim = hora_fim
+    config.intervalo_minutos = intervalo_minutos
+    config.atualizado_em = datetime.now()
+    config.atualizado_por = current.email
+    await db.commit()
+    return RedirectResponse("/admin/agenda?msg=Configura%C3%A7%C3%A3o+salva+com+sucesso", status_code=303)
+
+
+@app.post("/admin/api/agenda/bloqueio")
+async def admin_add_bloqueio(
+    request: Request,
+    data_bloqueio: str = Form(...),
+    motivo: str = Form(""),
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    try:
+        dia = date.fromisoformat(data_bloqueio)
+    except ValueError:
+        return RedirectResponse("/admin/agenda?msg=Data+inv%C3%A1lida", status_code=303)
+
+    existing = await db.scalar(select(BloqueioAgenda).where(BloqueioAgenda.data == dia))
+    if not existing:
+        bloqueio = BloqueioAgenda(
+            data=dia,
+            motivo=motivo.strip() or None,
+            criado_por=current.email,
+        )
+        db.add(bloqueio)
+        await db.commit()
+    return RedirectResponse("/admin/agenda?msg=Dia+bloqueado+com+sucesso", status_code=303)
+
+
+@app.post("/admin/api/agenda/bloqueio/{data_str}/excluir")
+async def admin_remove_bloqueio(
+    data_str: str,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    try:
+        dia = date.fromisoformat(data_str)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida")
+
+    bloqueio = await db.scalar(select(BloqueioAgenda).where(BloqueioAgenda.data == dia))
+    if bloqueio:
+        await db.delete(bloqueio)
+        await db.commit()
+    return RedirectResponse("/admin/agenda?msg=Bloqueio+removido", status_code=303)
 
 
 # ─── Admin: gerenciamento de usuários ─────────────────────────────────────────

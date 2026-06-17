@@ -241,8 +241,15 @@ async function carregarHorarios() {
       grid.innerHTML = `<span class="horarios-hint" style="color:#c62828;">${escapeHtml(err.detail || 'Não foi possível carregar os horários')}</span>`;
       return;
     }
-    const { horarios } = await resp.json();
+    const payload = await resp.json();
 
+    if (payload.bloqueado) {
+      const motivo = payload.motivo ? ` (${escapeHtml(payload.motivo)})` : '';
+      grid.innerHTML = `<span class="horarios-hint" style="color:#c62828;">Sem atendimento nesta data${motivo}. Escolha outro dia.</span>`;
+      return;
+    }
+
+    const { horarios } = payload;
     const livres = horarios.filter(h => h.disponivel);
     if (!livres.length) {
       grid.innerHTML = '<span class="horarios-hint" style="color:#c62828;">Nenhum horário disponível nesta data. Escolha outro dia.</span>';
@@ -715,15 +722,6 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       openModal();
     });
-  });
-
-  document.getElementById('lead-pular')?.addEventListener('click', function () {
-    closeModal();
-    window.location.href = '/cadastro';
-  });
-
-  overlay.addEventListener('click', function (e) {
-    if (e.target === overlay) closeModal();
   });
 
   document.getElementById('lead-form')?.addEventListener('submit', async function (e) {

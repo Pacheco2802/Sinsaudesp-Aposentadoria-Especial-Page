@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agenda — SinSaúdeSP Admin</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .agenda-card {
+      background: #fff;
+      border: 1px solid var(--cinza-borda);
+      border-radius: var(--radius-secondary);
+      padding: 24px 28px;
+      margin-bottom: 28px;
+      max-width: 700px;
+      box-shadow: var(--shadow-card);
+    }
+    .agenda-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--verde-escuro);
+      margin: 0 0 6px;
+    }
+    .agenda-card p.desc {
+      font-size: 0.83rem;
+      color: var(--cinza-texto);
+      margin: 0 0 18px;
+    }
+    .agenda-form-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .agenda-form-row .fld label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 4px;
+    }
+    .agenda-form-row .fld input {
+      padding: 8px 10px;
+      border: 1px solid var(--cinza-borda);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      width: 130px;
+    }
+    .agenda-form-row .fld input[type="number"] { width: 90px; }
+    .preview-slots {
+      margin-top: 14px;
+      font-size: 0.82rem;
+      color: var(--cinza-texto);
+    }
+    .preview-slots strong { color: #333; }
+    .slot-pill {
+      display: inline-block;
+      background: #e8f5e9;
+      color: var(--verde-escuro);
+      border-radius: 12px;
+      padding: 2px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin: 2px 2px;
+    }
+    .meta-atualizado {
+      font-size: 0.75rem;
+      color: #aaa;
+      margin-top: 10px;
+    }
+    .msg-ok {
+      background: #e8f5e9;
+      border: 1px solid #a5d6a7;
+      color: #2e7d32;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+      max-width: 700px;
+    }
+    .block-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.85rem; }
+    .block-table th { text-align: left; padding: 8px 12px; background: #f5f5f5; font-weight: 600; font-size: 0.78rem; color: #555; border-bottom: 2px solid var(--cinza-borda); }
+    .block-table td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    .block-table tr:last-child td { border-bottom: none; }
+    .btn-danger-sm {
+      background: #c62828;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-danger-sm:hover { background: #b71c1c; }
+    .badge-past { color: #aaa; font-style: italic; }
+    .add-block-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      margin-top: 16px;
+    }
+    .add-block-row .fld label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 4px;
+    }
+    .add-block-row .fld input {
+      padding: 8px 10px;
+      border: 1px solid var(--cinza-borda);
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .add-block-row .fld input[type="date"] { width: 155px; }
+    .add-block-row .fld input[type="text"] { width: 230px; }
+  </style>
+</head>
+<body>
+
+<div class="admin-layout">
+
+  <header class="admin-header">
+    <div class="logo logo--on-dark">
+      <img src="/static/img/logo.png" alt="SinSaúdeSP" class="logo-img">
+    </div>
+    <nav class="admin-nav">
+      <a href="/admin">Cadastros</a>
+      <a href="/admin/analytics">Analytics</a>
+      <a href="/admin/agenda" style="color:white;font-weight:600;">Agenda</a>
+      {% if is_admin %}<a href="/admin/usuarios">Usuários</a>{% endif %}
+      <span style="color: #aaa; font-size: 0.8rem;">{{ admin_email }}</span>
+      <a href="/admin/logout">Sair</a>
+    </nav>
+  </header>
+
+  <main class="admin-main">
+
+    <h2 style="font-size:1.3rem;font-weight:700;margin-bottom:20px;">Controle da Agenda</h2>
+
+    {% if msg %}
+    <div class="msg-ok">{{ msg }}</div>
+    {% endif %}
+
+    <!-- Config de horários -->
+    <div class="agenda-card">
+      <h3>Horários padrão de atendimento</h3>
+      <p class="desc">Define o intervalo de horários disponíveis para agendamento em dias sem configuração específica.</p>
+
+      <form action="/admin/api/agenda/config" method="POST">
+        <div class="agenda-form-row">
+          <div class="fld">
+            <label>Hora início</label>
+            <input type="time" name="hora_inicio" value="{{ config.hora_inicio if config else '09:00' }}" required>
+          </div>
+          <div class="fld">
+            <label>Hora fim</label>
+            <input type="time" name="hora_fim" value="{{ config.hora_fim if config else '16:00' }}" required>
+          </div>
+          <div class="fld">
+            <label>Intervalo (min)</label>
+            <input type="number" name="intervalo_minutos"
+                   value="{{ config.intervalo_minutos if config else 60 }}"
+                   min="15" max="480" required>
+          </div>
+          <div class="fld">
+            <button type="submit" class="btn-secondary">Salvar</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="preview-slots">
+        <strong>Horários gerados:</strong>
+        {% for h in horarios_preview %}
+        <span class="slot-pill">{{ h }}</span>
+        {% endfor %}
+        <span style="margin-left:6px;color:#aaa;">({{ horarios_preview | length }} slot{{ 's' if horarios_preview | length != 1 }})</span>
+      </div>
+
+      {% if config %}
+      <p class="meta-atualizado">
+        Atualizado em {{ config.atualizado_em.strftime('%d/%m/%Y às %H:%M') }} por {{ config.atualizado_por }}
+      </p>
+      {% endif %}
+    </div>
+
+    <!-- Dias bloqueados -->
+    <div class="agenda-card">
+      <h3>Dias sem atendimento</h3>
+      <p class="desc">
+        Usuários não poderão agendar nessas datas. O motivo (opcional) é exibido ao tentar selecionar o dia.
+      </p>
+
+      <form action="/admin/api/agenda/bloqueio" method="POST">
+        <div class="add-block-row">
+          <div class="fld">
+            <label>Data</label>
+            <input type="date" name="data_bloqueio" min="{{ hoje }}" required>
+          </div>
+          <div class="fld">
+            <label>Motivo (opcional)</label>
+            <input type="text" name="motivo" placeholder="Ex: Feriado, Reunião interna…" maxlength="200">
+          </div>
+          <div class="fld">
+            <button type="submit" class="btn-secondary">Bloquear dia</button>
+          </div>
+        </div>
+      </form>
+
+      {% if bloqueios %}
+      <table class="block-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Dia da semana</th>
+            <th>Motivo</th>
+            <th>Adicionado por</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set dias_semana = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'] %}
+          {% for b in bloqueios %}
+          {% set passado = b.data < hoje_date %}
+          <tr {% if passado %}style="opacity:0.5;"{% endif %}>
+            <td>
+              <strong>{{ b.data.strftime('%d/%m/%Y') }}</strong>
+              {% if passado %}<span class="badge-past">(passado)</span>{% endif %}
+            </td>
+            <td>{{ dias_semana[b.data.weekday()] }}</td>
+            <td>{{ b.motivo or '—' }}</td>
+            <td style="font-size:0.78rem;color:#888;">{{ b.criado_por }}</td>
+            <td>
+              <form action="/admin/api/agenda/bloqueio/{{ b.data.isoformat() }}/excluir" method="POST" style="display:inline;">
+                <button type="submit" class="btn-danger-sm"
+                        onclick="return confirm('Remover bloqueio de {{ b.data.strftime('%d/%m/%Y') }}?')">
+                  Remover
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:#aaa;margin-top:16px;font-size:0.88rem;">Nenhum dia bloqueado no momento.</p>
+      {% endif %}
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

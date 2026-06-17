@@ -125,3 +125,26 @@ class EventoSessao(Base):
     tipo: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     criado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+
+
+class ConfigAgenda(Base):
+    """Configuração global de horários — sempre 1 linha (id=1)."""
+    __tablename__ = "config_agenda"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    hora_inicio: Mapped[str] = mapped_column(String(5), nullable=False, server_default="09:00")
+    hora_fim: Mapped[str] = mapped_column(String(5), nullable=False, server_default="16:00")
+    intervalo_minutos: Mapped[int] = mapped_column(Integer, nullable=False, server_default="60")
+    atualizado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    atualizado_por: Mapped[str] = mapped_column(String(255), nullable=False, server_default="sistema")
+
+
+class BloqueioAgenda(Base):
+    """Datas específicas sem atendimento."""
+    __tablename__ = "bloqueios_agenda"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    data: Mapped[date] = mapped_column(Date, nullable=False, unique=True, index=True)
+    motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    criado_por: Mapped[str] = mapped_column(String(255), nullable=False, server_default="sistema")
