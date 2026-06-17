@@ -286,7 +286,7 @@ let zapSignPollTimer = null;
 async function iniciarAssinatura() {
   const checkbox = document.getElementById('procuracao_aceite');
   if (checkbox && !checkbox.checked) {
-    alert('Por favor, leia e aceite os termos da procuração antes de assinar.');
+    alert('Por favor, marque a caixa de autorização antes de assinar o kit.');
     return;
   }
 

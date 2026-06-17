@@ -70,47 +70,37 @@
       </button>
     </div>
 
-    <!-- Procuração Digital -->
+    <!-- Kit Digital — Assinatura -->
     <div class="form-card">
       <div class="form-card-title">
-        <span>✍️</span> Procuração Digital
+        <span>✍️</span> Assinatura Digital do Kit
       </div>
 
       <p style="font-size: 0.88rem; color: var(--cinza-texto); margin-bottom: 14px;">
-        Leia atentamente o texto da procuração e assine digitalmente para autorizar o sindicato a representá-lo(a).
+        O <strong>Kit de Aposentadoria Especial</strong> — que inclui a procuração e os formulários
+        do processo — será gerado com seus dados e apresentado no ambiente seguro da
+        <strong>ZapSign</strong> para você ler e assinar digitalmente.
       </p>
-
-      <div class="procuracao-box">PROCURAÇÃO AD JUDICIA ET EXTRA
-
-Pelo presente instrumento particular de procuração, eu, abaixo identificado(a) e qualificado(a), nomeio e constituo como meu(minha) procurador(a) os advogados do Departamento Jurídico do SinSaúdeSP – Sindicato dos Trabalhadores da Saúde de São Paulo, com poderes para o foro em geral, conforme artigo 105 do Código de Processo Civil, podendo propor ações, contestar, recorrer, transigir, desistir, dar e receber quitação, substabelecer com ou sem reservas, e praticar todos os atos necessários ao bom e fiel cumprimento deste mandato, especificamente para:
-
-1. Requerer, instruir e acompanhar o processo de concessão de Aposentadoria Especial por exposição habitual e permanente a agentes biológicos nocivos à saúde, nos termos do art. 57 da Lei nº 8.213/1991;
-2. Apresentar documentos, requerimentos e recursos administrativos perante o INSS;
-3. Representar o outorgante em processos judiciais perante a Justiça Federal e Turmas Recursais;
-4. Praticar todos os demais atos necessários ao fiel cumprimento deste mandato.
-5. Representar o outorgante em audiências, perícias e demais atos processuais.
-
-Esta procuração é válida até a conclusão definitiva do processo administrativo ou judicial referente à aposentadoria especial, podendo ser revogada a qualquer tempo mediante comunicação por escrito.
-
-O presente mandato é outorgado de forma gratuita, sem qualquer ônus para o outorgante, sendo o serviço prestado pelo sindicato como benefício aos seus filiados e representados.</div>
 
       <div class="checkbox-wrap">
         <input type="checkbox" id="procuracao_aceite" name="procuracao_aceite" required>
         <label for="procuracao_aceite">
-          Li e concordo com os termos da procuração acima, autorizando os advogados do SinSaúdeSP a me representar no processo de aposentadoria especial.
+          Autorizo os advogados do Departamento Jurídico do SinSaúdeSP – Sindicato dos
+          Trabalhadores da Saúde de São Paulo a me representar no processo de aposentadoria
+          especial, conforme os termos apresentados no documento para assinatura.
         </label>
       </div>
 
       <div class="zapsign-section">
         <div class="zapsign-info">
-          📋 Após aceitar os termos, clique em "Assinar digitalmente" para abrir o ambiente seguro de assinatura.
+          📋 Após marcar a caixa acima, clique em "Assinar kit digitalmente" para abrir o ambiente seguro de assinatura.
         </div>
         <button type="button" id="btn-iniciar-assinatura" class="btn-secondary"
                 onclick="iniciarAssinatura()">
-          ✍️ Assinar digitalmente
+          ✍️ Assinar kit digitalmente
         </button>
         <div class="assinatura-confirmada" id="assinatura-confirmada">
-          Documento assinado com sucesso!
+          Kit assinado com sucesso!
         </div>
       </div>
     </div>

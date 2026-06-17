@@ -254,6 +254,12 @@ async def lifespan(app: FastAPI):
     logger.info("Database tables created/verified")
 
     logger.info("Diagnóstico e-mail: %s", smtp_status())
+    logger.info(
+        "Diagnóstico ZapSign: TEMPLATE_ID=%s | SANDBOX=%s | TOKEN=%s",
+        os.environ.get("ZAPSIGN_TEMPLATE_ID", "(vazio)"),
+        os.environ.get("ZAPSIGN_SANDBOX", "true"),
+        "OK" if os.environ.get("ZAPSIGN_API_TOKEN") else "FALTANDO",
+    )
 
     await seed_admin()
 
@@ -467,8 +473,27 @@ async def api_etapa2_zapsign(request: Request, token: str, db=Depends(get_db)):
             result = await zapsign_criar(cadastro.nome_completo, cadastro.cpf, pdf_bytes)
         return result
     except Exception as e:
-        logger.error("ZapSign create error: %s", e)
-        raise HTTPException(status_code=502, detail="Erro ao criar documento na ZapSign. Tente novamente.")
+        import httpx as _httpx
+        zap_detail = str(e)
+        if isinstance(e, _httpx.HTTPStatusError):
+            try:
+                body = e.response.json()
+                zap_detail = body.get("detail") or body.get("message") or e.response.text[:300]
+            except Exception:
+                zap_detail = e.response.text[:300]
+            logger.error(
+                "ZapSign HTTP %s — sandbox=%s template_id=%s — body: %s",
+                e.response.status_code,
+                os.environ.get("ZAPSIGN_SANDBOX", "true"),
+                os.environ.get("ZAPSIGN_TEMPLATE_ID", "(vazio)"),
+                zap_detail,
+            )
+        else:
+            logger.error("ZapSign create error [%s]: %s", type(e).__name__, e)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Erro ao criar documento na ZapSign: {zap_detail}",
+        )
 
 
 @app.get("/api/zapsign/status")
