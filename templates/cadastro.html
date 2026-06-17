@@ -26,9 +26,10 @@
 <!-- Form -->
 <div class="form-container">
   <form id="cadastro-form" method="POST" action="/api/cadastro" enctype="multipart/form-data" novalidate>
+    <input type="hidden" name="lead_id" id="lead_id_field">
 
     <!-- Dados Pessoais -->
-    <div class="form-card">
+    <div class="form-card" data-secao="dados_pessoais">
       <div class="form-card-title">
         <span>👤</span> Dados Pessoais
       </div>
@@ -94,7 +95,7 @@
     </div>
 
     <!-- Endereço -->
-    <div class="form-card">
+    <div class="form-card" data-secao="endereco">
       <div class="form-card-title">
         <span>📍</span> Endereço
       </div>
@@ -150,7 +151,7 @@
     </div>
 
     <!-- Dados Profissionais -->
-    <div class="form-card">
+    <div class="form-card" data-secao="dados_profissionais">
       <div class="form-card-title">
         <span>🏥</span> Dados Profissionais
       </div>
@@ -207,7 +208,7 @@
     </div>
 
     <!-- CNIS (opcional) -->
-    <div class="form-card">
+    <div class="form-card" data-secao="cnis">
       <div class="form-card-title">
         <span>📄</span> CNIS <span style="font-weight: 400; font-size: 0.82rem; color: var(--cinza-texto);">(opcional, mas recomendado)</span>
       </div>
@@ -224,7 +225,7 @@
     </div>
 
     <!-- Agendamento -->
-    <div class="form-card">
+    <div class="form-card" data-secao="agendamento">
       <div class="form-card-title">
         <span>📅</span> Agendamento do Atendimento
       </div>

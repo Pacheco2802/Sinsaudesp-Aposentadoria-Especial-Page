@@ -700,3 +700,144 @@ document.addEventListener('DOMContentLoaded', () => {
 
   updateSubmitButton();
 });
+
+// ── Lead modal (landing page only) ───────────────────────────────────────────
+(function () {
+  const overlay = document.getElementById('lead-modal-overlay');
+  if (!overlay) return;
+
+  function openModal() { overlay.classList.add('open'); document.getElementById('lead-email')?.focus(); }
+  function closeModal() { overlay.classList.remove('open'); }
+
+  // Intercepta todos os links /cadastro
+  document.querySelectorAll('a[href="/cadastro"]').forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      openModal();
+    });
+  });
+
+  document.getElementById('lead-pular')?.addEventListener('click', function () {
+    closeModal();
+    window.location.href = '/cadastro';
+  });
+
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) closeModal();
+  });
+
+  document.getElementById('lead-form')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const email = document.getElementById('lead-email').value.trim();
+    const termos = document.getElementById('lead-termos').checked;
+    const marketing = document.getElementById('lead-marketing').checked;
+    const errEl = document.getElementById('lead-error');
+    const btn = document.getElementById('lead-btn');
+
+    errEl.textContent = '';
+    if (!termos) {
+      errEl.textContent = 'Você precisa aceitar os termos para continuar.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Aguarde…';
+    try {
+      const resp = await fetch('/api/lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, consentimento_termos: termos, consentimento_marketing: marketing }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || 'Erro ao registrar e-mail');
+      sessionStorage.setItem('lead_id', data.lead_id);
+      window.location.href = '/cadastro';
+    } catch (err) {
+      errEl.textContent = err.message;
+      btn.disabled = false;
+      btn.textContent = 'Continuar para o cadastro';
+    }
+  });
+})();
+
+// ── Preenche lead_id no formulário de cadastro ───────────────────────────────
+(function () {
+  const f = document.getElementById('lead_id_field');
+  if (f) f.value = sessionStorage.getItem('lead_id') || '';
+})();
+
+// ── Analytics de sessão (cadastro page only) ─────────────────────────────────
+(function () {
+  if (!document.getElementById('cadastro-form')) return;
+
+  const LEAD_ID = sessionStorage.getItem('lead_id') || null;
+  const SESSION_ID = (function () {
+    let s = sessionStorage.getItem('_sess_id');
+    if (!s) { s = crypto.randomUUID(); sessionStorage.setItem('_sess_id', s); }
+    return s;
+  })();
+  const SECTIONS_SEEN = new Set();
+  const FIELD_SENT = new Set();
+  const FIELD_FOCUS_TIME = {};
+  let LAST_SECTION = null;
+  let FORM_SUBMITTED = false;
+
+  function sendEvento(tipo, payload) {
+    const body = JSON.stringify({ session_id: SESSION_ID, lead_id: LEAD_ID, tipo: tipo, payload: payload || null });
+    fetch('/api/analytics/evento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body,
+      keepalive: true,
+    }).catch(function () {});
+  }
+
+  // Visibilidade das seções
+  const observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.3) {
+        const secao = entry.target.dataset.secao;
+        if (secao && !SECTIONS_SEEN.has(secao)) {
+          SECTIONS_SEEN.add(secao);
+          LAST_SECTION = secao;
+          sendEvento('secao_vista', { secao: secao });
+        }
+      }
+    });
+  }, { threshold: 0.3 });
+
+  document.querySelectorAll('.form-card[data-secao]').forEach(function (card) {
+    observer.observe(card);
+  });
+
+  // Tempo por campo
+  document.querySelectorAll('input, select, textarea').forEach(function (el) {
+    const fname = el.name || el.id;
+    if (!fname) return;
+    el.addEventListener('focus', function () { FIELD_FOCUS_TIME[fname] = Date.now(); });
+    el.addEventListener('blur', function () {
+      if (FIELD_FOCUS_TIME[fname] && el.value && !FIELD_SENT.has(fname)) {
+        FIELD_SENT.add(fname);
+        sendEvento('campo_blur', { campo: fname, tempo_ms: Date.now() - FIELD_FOCUS_TIME[fname] });
+      }
+      delete FIELD_FOCUS_TIME[fname];
+    });
+  });
+
+  // Abandono
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden' && !FORM_SUBMITTED) {
+      const reqs = document.querySelectorAll('input[required], select[required]');
+      const filled = Array.from(reqs).filter(function (el) { return el.value.trim(); }).length;
+      sendEvento('abandono', {
+        ultima_secao: LAST_SECTION,
+        progresso_pct: reqs.length ? Math.round(filled / reqs.length * 100) : 0,
+      });
+    }
+  });
+
+  // Marca como submetido
+  document.getElementById('cadastro-form').addEventListener('submit', function () {
+    FORM_SUBMITTED = true;
+  }, { capture: true });
+})();

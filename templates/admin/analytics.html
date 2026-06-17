@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics — SinSaúdeSP Admin</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div class="admin-layout">
+
+  <header class="admin-header">
+    <div class="logo logo--on-dark">
+      <img src="/static/img/logo.png" alt="SinSaúdeSP" class="logo-img">
+    </div>
+    <nav class="admin-nav">
+      <a href="/admin">Cadastros</a>
+      <a href="/admin/analytics" style="color:white;font-weight:600;">Analytics</a>
+      {% if is_admin %}<a href="/admin/usuarios">Usuários</a>{% endif %}
+      <span style="color: #aaa; font-size: 0.8rem;">{{ admin_email }}</span>
+      <a href="/admin/logout">Sair</a>
+    </nav>
+  </header>
+
+  <main class="admin-main">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <h2 style="font-size:1.3rem;font-weight:700;">Analytics — Funil de captação</h2>
+      <form method="GET" action="/admin/analytics" style="display:flex;gap:8px;align-items:center;">
+        <label style="font-size:0.85rem;color:var(--cinza-texto);">Período:</label>
+        <select name="dias" style="padding:6px 10px;border:1px solid var(--cinza-borda);border-radius:6px;font-size:0.85rem;">
+          <option value="7" {% if dias == 7 %}selected{% endif %}>7 dias</option>
+          <option value="30" {% if dias == 30 %}selected{% endif %}>30 dias</option>
+          <option value="90" {% if dias == 90 %}selected{% endif %}>90 dias</option>
+          <option value="365" {% if dias == 365 %}selected{% endif %}>1 ano</option>
+        </select>
+        <button type="submit" class="btn-secondary" style="padding:6px 14px;">Aplicar</button>
+      </form>
+    </div>
+
+    <!-- Funil -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <span class="stat-number">{{ total_leads }}</span>
+        <span class="stat-label">Leads capturados</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number" style="color:var(--verde-principal);">{{ leads_convertidos }}</span>
+        <span class="stat-label">Convertidos</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number" style="color:var(--verde-principal);">{{ taxa_conversao }}%</span>
+        <span class="stat-label">Taxa de conversão</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number" style="color:#c62828;">{{ leads_abandonados }}</span>
+        <span class="stat-label">Abandonados</span>
+      </div>
+    </div>
+
+    <!-- Drop-off por seção -->
+    <div class="detail-card" style="margin-top:24px;">
+      <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">Onde os usuários chegam no formulário</h3>
+      {% if secoes_funil %}
+      {% for secao, sessoes, pct in secoes_funil %}
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;font-size:0.84rem;margin-bottom:4px;">
+          <span style="font-weight:500;">{{ secao.replace('_', ' ').title() }}</span>
+          <span style="color:var(--cinza-texto);">{{ sessoes }} sessões</span>
+        </div>
+        <div style="background:#eee;border-radius:4px;height:10px;overflow:hidden;">
+          <div style="background:var(--verde-principal);border-radius:4px;height:100%;width:{{ pct }}%;"></div>
+        </div>
+      </div>
+      {% endfor %}
+      <p style="font-size:0.78rem;color:var(--cinza-texto);margin-top:8px;">
+        Baseado em eventos de <em>secao_vista</em> nos últimos {{ dias }} dias.
+      </p>
+      {% else %}
+      <p style="color:var(--cinza-texto);font-size:0.9rem;">Sem dados de seção ainda. Os dados aparecem conforme os usuários visitam o formulário.</p>
+      {% endif %}
+    </div>
+
+    <!-- Lembretes -->
+    <div class="detail-card" style="margin-top:24px;">
+      <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">Performance dos lembretes por e-mail</h3>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+          <thead>
+            <tr style="background:var(--cinza-fundo);">
+              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--cinza-borda);">Lembrete</th>
+              <th style="padding:10px 12px;text-align:right;border-bottom:1px solid var(--cinza-borda);">Enviados</th>
+              <th style="padding:10px 12px;text-align:right;border-bottom:1px solid var(--cinza-borda);">Convertidos</th>
+              <th style="padding:10px 12px;text-align:right;border-bottom:1px solid var(--cinza-borda);">Conversão %</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:10px 12px;border-bottom:1px solid var(--cinza-borda);">Lembrete 1 (24h)</td>
+              <td style="padding:10px 12px;text-align:right;border-bottom:1px solid var(--cinza-borda);">{{ lembretes_1 }}</td>
+              <td style="padding:10px 12px;text-align:right;border-bottom:1px solid var(--cinza-borda);">{{ lembretes_1_conv }}</td>
+              <td style="padding:10px 12px;text-align:right;border-bottom:1px solid var(--cinza-borda);">
+                {{ (lembretes_1_conv / lembretes_1 * 100) | round(1) if lembretes_1 else '—' }}{% if lembretes_1 %}%{% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:10px 12px;border-bottom:1px solid var(--cinza-borda);">Lembrete 2 (72h)</td>
+              <td style="padding:10px 12px;text-align:right;border-bottom:1px solid var(--cinza-borda);">{{ lembretes_2 }}</td>
+              <td style="padding:10px 12px;text-align:right;border-bottom:1px solid var(--cinza-borda);">{{ lembretes_2_conv }}</td>
+              <td style="padding:10px 12px;text-align:right;border-bottom:1px solid var(--cinza-borda);">
+                {{ (lembretes_2_conv / lembretes_2 * 100) | round(1) if lembretes_2 else '—' }}{% if lembretes_2 %}%{% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:10px 12px;" colspan="2">Descadastros totais</td>
+              <td style="padding:10px 12px;text-align:right;" colspan="2">{{ descadastros }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Leads não convertidos recentes -->
+    <div class="detail-card" style="margin-top:24px;">
+      <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">Leads não convertidos recentes</h3>
+      {% if leads_recentes %}
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+          <thead>
+            <tr style="background:var(--cinza-fundo);">
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--cinza-borda);">E-mail</th>
+              <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--cinza-borda);">Capturado em</th>
+              <th style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--cinza-borda);">Lembrete 1</th>
+              <th style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--cinza-borda);">Lembrete 2</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for lead in leads_recentes %}
+            <tr>
+              <td style="padding:8px 12px;border-bottom:1px solid var(--cinza-borda);">
+                {{ lead.email[:3] }}***{{ lead.email[lead.email.find('@'):] }}
+              </td>
+              <td style="padding:8px 12px;border-bottom:1px solid var(--cinza-borda);color:var(--cinza-texto);font-size:0.8rem;">
+                {{ lead.criado_em.strftime('%d/%m/%Y %H:%M') }}
+              </td>
+              <td style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--cinza-borda);">
+                {% if lead.lembrete_1_enviado_em %}
+                <span style="color:var(--verde-principal);">✓</span>
+                {% else %}
+                <span style="color:var(--cinza-texto);">—</span>
+                {% endif %}
+              </td>
+              <td style="padding:8px 12px;text-align:center;border-bottom:1px solid var(--cinza-borda);">
+                {% if lead.lembrete_2_enviado_em %}
+                <span style="color:var(--verde-principal);">✓</span>
+                {% else %}
+                <span style="color:var(--cinza-texto);">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p style="color:var(--cinza-texto);font-size:0.9rem;">Nenhum lead abandonado no momento.</p>
+      {% endif %}
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

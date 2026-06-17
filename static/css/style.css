@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ── Variaveis ── */
 :root {
@@ -814,3 +814,27 @@ textarea.nota-input { min-height: 120px; resize: vertical; }
   .filter-bar { flex-direction: column; }
   .filter-bar select, .filter-bar input { min-width: 100%; }
 }
+
+/* ── Lead capture modal ── */
+#lead-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+#lead-modal-overlay.open { display: flex; }
+.lead-modal-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 36px 28px;
+  max-width: 460px;
+  width: 100%;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.22);
+}
+.lead-modal-card .field-group { margin-top: 0; }
+.lead-modal-card .checkbox-wrap { display: flex; align-items: flex-start; gap: 10px; }
+.lead-modal-card .checkbox-wrap input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }

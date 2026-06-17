@@ -126,5 +126,48 @@
   <p class="footer-copy">© 2026 SinSaúdeSP. Todos os direitos reservados.</p>
 </footer>
 
+
+<!-- Modal de captura de lead -->
+<div id="lead-modal-overlay">
+  <div class="lead-modal-card">
+    <h2 style="font-size:1.25rem;font-weight:700;color:var(--verde-principal);margin:0 0 8px;">
+      Análise gratuita — primeiro passo
+    </h2>
+    <p style="font-size:0.9rem;color:var(--cinza-texto);margin:0 0 20px;">
+      Informe seu e-mail para reservarmos sua vaga e enviarmos as informações do atendimento.
+    </p>
+    <form id="lead-form" novalidate>
+      <div class="field-group">
+        <label for="lead-email">E-mail <span class="req">*</span></label>
+        <input type="email" id="lead-email" placeholder="seu@email.com" required autocomplete="email">
+      </div>
+      <div class="checkbox-wrap" style="margin-top:16px;">
+        <input type="checkbox" id="lead-termos" required>
+        <label for="lead-termos" style="font-size:0.82rem;line-height:1.4;">
+          Li e concordo com a Política de Privacidade e autorizo o SinSaúdeSP a usar meus dados
+          para análise do meu direito à aposentadoria especial, conforme a LGPD (Lei 13.709/2018).
+          <span class="req">*</span>
+        </label>
+      </div>
+      <div class="checkbox-wrap" style="margin-top:10px;">
+        <input type="checkbox" id="lead-marketing">
+        <label for="lead-marketing" style="font-size:0.82rem;line-height:1.4;">
+          Aceito receber comunicações e atualizações sobre aposentadoria especial por e-mail.
+          Posso cancelar a qualquer momento.
+        </label>
+      </div>
+      <div id="lead-error" style="color:#c62828;font-size:0.82rem;margin-top:8px;min-height:18px;"></div>
+      <button type="submit" id="lead-btn" class="btn-submit-main" style="margin-top:20px;width:100%;">
+        Continuar para o cadastro
+      </button>
+    </form>
+    <button id="lead-pular" type="button"
+      style="display:block;width:100%;margin-top:10px;background:none;border:none;color:var(--cinza-texto);font-size:0.8rem;cursor:pointer;text-decoration:underline;padding:4px;">
+      Continuar sem informar e-mail
+    </button>
+  </div>
+</div>
+
+<script src="/static/js/main.js"></script>
 </body>
 </html>

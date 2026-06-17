@@ -1,3 +1,4 @@
+import uuid as _uuid
 from datetime import date, datetime
 from typing import Optional
 
@@ -88,3 +89,39 @@ class AdminUsuario(Base):
     # "admin" = acesso total (gerencia usuários) | "juridico" = gerencia cadastros
     papel: Mapped[str] = mapped_column(String(20), nullable=False, server_default="juridico")
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+
+
+class Lead(Base):
+    __tablename__ = "leads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id_publico: Mapped[str] = mapped_column(
+        String(36), nullable=False, unique=True, index=True,
+        default=lambda: str(_uuid.uuid4()),
+    )
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    consentimento_termos: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    consentimento_marketing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cadastro_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("cadastros.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    convertido_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    lembrete_1_enviado_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    lembrete_2_enviado_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    descadastrado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+
+
+class EventoSessao(Base):
+    __tablename__ = "eventos_sessao"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lead_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    session_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    tipo: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())

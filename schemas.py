@@ -1,4 +1,5 @@
 import re
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -256,3 +257,40 @@ class ZapSignCreateIn(BaseModel):
 class ZapSignCreateOut(BaseModel):
     signer_token: str
     doc_token: str
+
+
+class LeadCreate(BaseModel):
+    email: EmailStr
+    consentimento_termos: bool
+    consentimento_marketing: bool = False
+
+    @field_validator("consentimento_termos")
+    @classmethod
+    def termos_obrigatorio(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("Você precisa aceitar os termos para continuar")
+        return v
+
+
+class EventoSessaoCreate(BaseModel):
+    session_id: str
+    lead_id: Optional[str] = None
+    tipo: str
+    payload: Optional[dict] = None
+
+    @field_validator("session_id")
+    @classmethod
+    def val_session(cls, v: str) -> str:
+        try:
+            uuid.UUID(v)
+        except ValueError:
+            raise ValueError("session_id inválido")
+        return v
+
+    @field_validator("tipo")
+    @classmethod
+    def val_tipo(cls, v: str) -> str:
+        validos = {"secao_vista", "secao_concluida", "campo_blur", "upload_cnis", "abandono", "conversao"}
+        if v not in validos:
+            raise ValueError("tipo inválido")
+        return v

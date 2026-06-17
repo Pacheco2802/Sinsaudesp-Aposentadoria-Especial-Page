@@ -153,6 +153,71 @@ async def send_admin_notification(
         logger.error("Failed to send admin notification for cadastro %s: %s", cadastro_id, e)
 
 
+async def send_lembrete_email(to_email: str, lead_id_publico: str, numero: int) -> bool:
+    descadastro_link = f"{BASE_URL}/descadastro/{lead_id_publico}"
+    cadastro_link = f"{BASE_URL}/cadastro"
+
+    if numero == 1:
+        subject = "Você esqueceu — análise gratuita de aposentadoria especial"
+        corpo_principal = (
+            "<p>Você começou a solicitar sua análise gratuita de <strong>Aposentadoria Especial por "
+            "Perigo Biológico</strong> mas não concluiu o cadastro.</p>"
+            "<p>Trabalhadores da saúde têm direito a se aposentar com apenas 25 anos de contribuição. "
+            "Nossa equipe pode verificar o seu caso gratuitamente — sem compromisso.</p>"
+        )
+        texto_principal = (
+            "Você começou a solicitar sua análise gratuita de Aposentadoria Especial por "
+            "Perigo Biológico mas não concluiu o cadastro.\n\n"
+            "Trabalhadores da saúde têm direito a se aposentar com apenas 25 anos de contribuição. "
+            "Nossa equipe pode verificar o seu caso gratuitamente, sem compromisso."
+        )
+    else:
+        subject = "Última mensagem — análise gratuita ainda disponível"
+        corpo_principal = (
+            "<p>Esta é nossa última mensagem sobre sua análise gratuita de "
+            "<strong>Aposentadoria Especial por Perigo Biológico</strong>.</p>"
+            "<p>Se tiver interesse, ainda é possível agendar seu atendimento. "
+            "Após isso, não enviaremos mais lembretes.</p>"
+        )
+        texto_principal = (
+            "Esta é nossa última mensagem sobre sua análise gratuita de Aposentadoria Especial por "
+            "Perigo Biológico.\n\n"
+            "Se tiver interesse, ainda é possível agendar seu atendimento. "
+            "Após isso, não enviaremos mais lembretes."
+        )
+
+    body = f"""
+    <html><body style="font-family: Arial, sans-serif; color: #333;">
+    <div style="max-width:600px;margin:0 auto;padding:20px;">
+      <h2 style="color:#2E7D32;">SinSaúdeSP — Aposentadoria Especial</h2>
+      {corpo_principal}
+      <p style="margin:28px 0;">
+        <a href="{cadastro_link}" style="background:#2E7D32;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;">
+          Concluir meu cadastro
+        </a>
+      </p>
+      <hr style="border:1px solid #eee;margin:24px 0;">
+      <p style="font-size:11px;color:#999;">
+        SinSaúdeSP — Sindicato dos Trabalhadores da Saúde de São Paulo<br>
+        <a href="{descadastro_link}" style="color:#999;">Não quero mais receber lembretes</a>
+      </p>
+    </div>
+    </body></html>
+    """
+    text = (
+        f"{texto_principal}\n\n"
+        f"Concluir meu cadastro: {cadastro_link}\n\n"
+        f"SinSaúdeSP — Sindicato dos Trabalhadores da Saúde de São Paulo\n"
+        f"Não quero mais receber lembretes: {descadastro_link}"
+    )
+    try:
+        await _send(to_email, subject, body, text)
+        return True
+    except Exception as e:
+        logger.error("Failed to send lembrete %d to %s: %s", numero, to_email, e)
+        return False
+
+
 async def send_etapa2_email(to_email: str, nome: str, link: str) -> bool:
     subject = "Próximo passo: envie seus documentos e assine a procuração — SinSaúdeSP"
     body = f"""

@@ -35,12 +35,15 @@ from email_service import (
     send_admin_notification,
     send_confirmation_email,
     send_etapa2_email,
+    send_lembrete_email,
     smtp_status,
 )
-from models import AdminUsuario, Cadastro, Documento
+from models import AdminUsuario, Cadastro, Documento, EventoSessao, Lead
 from pdf_generator import generate_procuration_pdf
 from schemas import (
     CadastroCreate,
+    EventoSessaoCreate,
+    LeadCreate,
     NotaUpdateIn,
     StatusUpdateIn,
 )
@@ -123,6 +126,47 @@ async def cleanup_temp_files() -> None:
             logger.error("Temp cleanup error: %s", e)
 
 
+async def processar_lembretes() -> None:
+    while True:
+        await asyncio.sleep(1800)  # a cada 30 min
+        agora = datetime.now()
+        try:
+            async with AsyncSessionLocal() as db:
+                # Lembrete 1: +24h sem conversão, termos aceitos
+                resultado_1 = await db.execute(
+                    select(Lead).where(
+                        Lead.convertido_em.is_(None),
+                        Lead.descadastrado == False,
+                        Lead.consentimento_termos == True,
+                        Lead.lembrete_1_enviado_em.is_(None),
+                        Lead.criado_em <= agora - timedelta(hours=24),
+                    ).limit(50)
+                )
+                for lead in resultado_1.scalars().all():
+                    ok = await send_lembrete_email(lead.email, lead.id_publico, 1)
+                    if ok:
+                        lead.lembrete_1_enviado_em = agora
+                await db.commit()
+
+                # Lembrete 2: +72h, lembrete 1 já enviado
+                resultado_2 = await db.execute(
+                    select(Lead).where(
+                        Lead.convertido_em.is_(None),
+                        Lead.descadastrado == False,
+                        Lead.lembrete_1_enviado_em.is_not(None),
+                        Lead.lembrete_2_enviado_em.is_(None),
+                        Lead.criado_em <= agora - timedelta(hours=72),
+                    ).limit(50)
+                )
+                for lead in resultado_2.scalars().all():
+                    ok = await send_lembrete_email(lead.email, lead.id_publico, 2)
+                    if ok:
+                        lead.lembrete_2_enviado_em = agora
+                await db.commit()
+        except Exception as e:
+            logger.error("Erro ao processar lembretes: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if len(JWT_SECRET) < 32:
@@ -158,6 +202,35 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS estado_civil VARCHAR(30)",
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS nacionalidade VARCHAR(40)",
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS recebe_outro_beneficio BOOLEAN NOT NULL DEFAULT false",
+            # Novas tabelas: leads e eventos_sessao
+            """CREATE TABLE IF NOT EXISTS leads (
+                id SERIAL PRIMARY KEY,
+                id_publico VARCHAR(36) NOT NULL,
+                email VARCHAR(255) NOT NULL,
+                consentimento_termos BOOLEAN NOT NULL DEFAULT false,
+                consentimento_marketing BOOLEAN NOT NULL DEFAULT false,
+                cadastro_id INTEGER REFERENCES cadastros(id) ON DELETE SET NULL,
+                convertido_em TIMESTAMP,
+                lembrete_1_enviado_em TIMESTAMP,
+                lembrete_2_enviado_em TIMESTAMP,
+                descadastrado BOOLEAN NOT NULL DEFAULT false,
+                ip VARCHAR(45),
+                user_agent TEXT,
+                criado_em TIMESTAMP NOT NULL DEFAULT now()
+            )""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_leads_id_publico ON leads(id_publico)",
+            "CREATE INDEX IF NOT EXISTS ix_leads_email ON leads(email)",
+            "CREATE INDEX IF NOT EXISTS ix_leads_cadastro_id ON leads(cadastro_id)",
+            """CREATE TABLE IF NOT EXISTS eventos_sessao (
+                id SERIAL PRIMARY KEY,
+                lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+                session_id VARCHAR(36) NOT NULL,
+                tipo VARCHAR(30) NOT NULL,
+                payload TEXT,
+                criado_em TIMESTAMP NOT NULL DEFAULT now()
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_eventos_session_id ON eventos_sessao(session_id)",
+            "CREATE INDEX IF NOT EXISTS ix_eventos_tipo ON eventos_sessao(tipo)",
         ):
             await conn.execute(text(ddl))
     logger.info("Database tables created/verified")
@@ -167,6 +240,7 @@ async def lifespan(app: FastAPI):
     await seed_admin()
 
     asyncio.create_task(cleanup_temp_files())
+    asyncio.create_task(processar_lembretes())
     logger.info("Application startup complete")
     yield
     await engine.dispose()
@@ -257,6 +331,66 @@ async def obrigado(
         "modalidade": modalidade if modalidade in ("online", "presencial") else None,
         "etapa2": etapa == "2",
     })
+
+
+# ─── Lead capture & analytics ────────────────────────────────────────────────
+
+@app.post("/api/lead")
+@limiter.limit("10/hour")
+async def api_lead(request: Request, body: LeadCreate, db=Depends(get_db)):
+    email = str(body.email).lower().strip()
+    ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")[:500]
+
+    # Upsert: se já existe lead não convertido com esse email, atualiza consentimento
+    existente = await db.scalar(
+        select(Lead).where(Lead.email == email, Lead.convertido_em.is_(None))
+    )
+    if existente:
+        existente.consentimento_termos = body.consentimento_termos
+        existente.consentimento_marketing = body.consentimento_marketing
+        existente.ip = ip
+        await db.commit()
+        return {"lead_id": existente.id_publico}
+
+    lead = Lead(
+        email=email,
+        consentimento_termos=body.consentimento_termos,
+        consentimento_marketing=body.consentimento_marketing,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    db.add(lead)
+    await db.commit()
+    return {"lead_id": lead.id_publico}
+
+
+@app.post("/api/analytics/evento", status_code=204)
+@limiter.limit("600/hour")
+async def api_analytics_evento(request: Request, body: EventoSessaoCreate, db=Depends(get_db)):
+    lead_pk: Optional[int] = None
+    if body.lead_id:
+        lead_pk = await db.scalar(
+            select(Lead.id).where(Lead.id_publico == body.lead_id)
+        )
+
+    payload_str = json.dumps(body.payload, ensure_ascii=False) if body.payload else None
+    db.add(EventoSessao(
+        lead_id=lead_pk,
+        session_id=body.session_id,
+        tipo=body.tipo,
+        payload=payload_str,
+    ))
+    await db.commit()
+
+
+@app.get("/descadastro/{lead_id_publico}", response_class=HTMLResponse)
+async def descadastro(request: Request, lead_id_publico: str, db=Depends(get_db)):
+    lead = await db.scalar(select(Lead).where(Lead.id_publico == lead_id_publico))
+    if lead and not lead.descadastrado:
+        lead.descadastrado = True
+        await db.commit()
+    return templates.TemplateResponse(request, "descadastro.html")
 
 
 # ─── ZapSign ──────────────────────────────────────────────────────────────────
@@ -590,6 +724,7 @@ async def api_cadastro(
     agendamento_hora: str = Form(...),
     session_id: str = Form(...),
     csrf_token: str = Form(...),
+    lead_id: Optional[str] = Form(None),
     db=Depends(get_db),
 ):
     # CSRF check
@@ -696,6 +831,14 @@ async def api_cadastro(
     await _mover_documentos_sessao(db, session_id, cadastro_id)
 
     await db.commit()
+
+    # Vincula o lead ao cadastro se fornecido
+    if lead_id:
+        lead = await db.scalar(select(Lead).where(Lead.id_publico == lead_id))
+        if lead and not lead.convertido_em:
+            lead.cadastro_id = cadastro_id
+            lead.convertido_em = datetime.now()
+            await db.commit()
 
     agendamento_str = slot.strftime("%d/%m/%Y às %H:%M")
     asyncio.create_task(
@@ -1128,6 +1271,87 @@ async def admin_update_doc_tipo(
     doc.tipo = tipo
     await db.commit()
     return {"ok": True}
+
+
+@app.get("/admin/analytics", response_class=HTMLResponse)
+async def admin_analytics(
+    request: Request,
+    dias: int = 30,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    dias = max(1, min(dias, 365))
+    desde = datetime.now() - timedelta(days=dias)
+
+    total_leads = await db.scalar(
+        select(func.count(Lead.id)).where(Lead.criado_em >= desde)
+    ) or 0
+    leads_convertidos = await db.scalar(
+        select(func.count(Lead.id)).where(
+            Lead.criado_em >= desde, Lead.convertido_em.is_not(None)
+        )
+    ) or 0
+    leads_abandonados = total_leads - leads_convertidos
+    taxa_conversao = round((leads_convertidos / total_leads * 100) if total_leads else 0, 1)
+
+    # Drop-off por seção (PostgreSQL JSON)
+    secoes_result = await db.execute(
+        text("""
+            SELECT payload::json->>'secao' AS secao, COUNT(DISTINCT session_id) AS sessoes
+            FROM eventos_sessao
+            WHERE tipo = 'secao_vista' AND criado_em >= :desde AND payload IS NOT NULL
+            GROUP BY 1 ORDER BY sessoes DESC
+        """),
+        {"desde": desde},
+    )
+    secoes_raw = secoes_result.all()
+    max_sessoes = max((r.sessoes for r in secoes_raw), default=1)
+    secoes_funil = [(r.secao, r.sessoes, int(r.sessoes / max_sessoes * 100)) for r in secoes_raw]
+
+    # Lembretes
+    lembretes_1 = await db.scalar(select(func.count(Lead.id)).where(Lead.lembrete_1_enviado_em.is_not(None))) or 0
+    lembretes_1_conv = await db.scalar(
+        select(func.count(Lead.id)).where(
+            Lead.lembrete_1_enviado_em.is_not(None),
+            Lead.convertido_em.is_not(None),
+            Lead.convertido_em > Lead.lembrete_1_enviado_em,
+        )
+    ) or 0
+    lembretes_2 = await db.scalar(select(func.count(Lead.id)).where(Lead.lembrete_2_enviado_em.is_not(None))) or 0
+    lembretes_2_conv = await db.scalar(
+        select(func.count(Lead.id)).where(
+            Lead.lembrete_2_enviado_em.is_not(None),
+            Lead.convertido_em.is_not(None),
+            Lead.convertido_em > Lead.lembrete_2_enviado_em,
+        )
+    ) or 0
+    descadastros = await db.scalar(select(func.count(Lead.id)).where(Lead.descadastrado == True)) or 0
+
+    # Leads recentes não convertidos
+    leads_recentes_result = await db.execute(
+        select(Lead)
+        .where(Lead.convertido_em.is_(None), Lead.descadastrado == False)
+        .order_by(Lead.criado_em.desc())
+        .limit(20)
+    )
+    leads_recentes = leads_recentes_result.scalars().all()
+
+    return templates.TemplateResponse(request, "admin/analytics.html", {
+        "total_leads": total_leads,
+        "leads_convertidos": leads_convertidos,
+        "leads_abandonados": leads_abandonados,
+        "taxa_conversao": taxa_conversao,
+        "secoes_funil": secoes_funil,
+        "lembretes_1": lembretes_1,
+        "lembretes_1_conv": lembretes_1_conv,
+        "lembretes_2": lembretes_2,
+        "lembretes_2_conv": lembretes_2_conv,
+        "descadastros": descadastros,
+        "leads_recentes": leads_recentes,
+        "dias": dias,
+        "admin_email": current.email,
+        "is_admin": current.papel == "admin",
+    })
 
 
 @app.get("/admin/documentos/{documento_id}")
