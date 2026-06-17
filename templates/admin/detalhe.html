@@ -60,6 +60,14 @@
           <span class="info-value" style="font-family: monospace;">{{ cadastro.cpf }}</span>
         </div>
         <div class="info-row">
+          <span class="info-label">RG</span>
+          <span class="info-value" style="font-family: monospace;">{{ cadastro.rg or '—' }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Data de nascimento</span>
+          <span class="info-value">{{ cadastro.data_nascimento.strftime('%d/%m/%Y') if cadastro.data_nascimento else '—' }}</span>
+        </div>
+        <div class="info-row">
           <span class="info-label">Telefone / WhatsApp</span>
           <span class="info-value">
             <a href="https://wa.me/55{{ cadastro.telefone | replace('(','') | replace(')','') | replace(' ','') | replace('-','') }}"

@@ -27,6 +27,8 @@ class CadastroCreate(BaseModel):
     tempo_servico: str
     filiado: bool
     analise_estabilidade: bool = False
+    rg: str
+    data_nascimento: str
     estado_civil: str
     nacionalidade: str
     recebe_outro_beneficio: bool = False
@@ -73,6 +75,28 @@ class CadastroCreate(BaseModel):
             raise ValueError("Campo obrigatório")
         if len(v) > 255:
             raise ValueError("Texto muito longo")
+        return v
+
+    @field_validator("rg")
+    @classmethod
+    def validate_rg(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 5 or len(v) > 20:
+            raise ValueError("RG inválido")
+        return v
+
+    @field_validator("data_nascimento")
+    @classmethod
+    def validate_data_nascimento(cls, v: str) -> str:
+        v = v.strip()
+        try:
+            dia = datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Data de nascimento inválida")
+        hoje = datetime.now()
+        idade = (hoje - dia).days / 365.25
+        if idade < 14 or idade > 110:
+            raise ValueError("Data de nascimento fora da faixa válida")
         return v
 
     @field_validator("estado_civil")

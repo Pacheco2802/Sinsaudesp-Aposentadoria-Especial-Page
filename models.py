@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -21,6 +21,8 @@ class Cadastro(Base):
     filiado: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     # Dados para a procuração / kit (INSS)
+    rg: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    data_nascimento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     estado_civil: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     nacionalidade: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     # True = recebe aposentadoria/pensão de outro regime de previdência

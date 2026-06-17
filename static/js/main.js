@@ -452,7 +452,8 @@ async function submitCadastro(e) {
   if (csrfField) csrfField.value = getCookie('csrf_token');
 
   const requiredFields = [
-    'nome_completo', 'cpf', 'telefone', 'email',
+    'nome_completo', 'cpf', 'rg', 'data_nascimento', 'telefone', 'email',
+    'estado_civil', 'nacionalidade',
     'cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf',
     'hospital', 'cargo', 'tempo_servico', 'agendamento_data',
   ];
