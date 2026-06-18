@@ -119,17 +119,3 @@ async def consultar_documento(doc_token: str) -> dict:
         return resp.json()
 
 
-async def listar_modelos() -> list[dict]:
-    """Retorna todos os modelos (templates DOCX) da conta ZapSign."""
-    if not ZAPSIGN_API_TOKEN:
-        raise RuntimeError("ZAPSIGN_API_TOKEN not configured")
-
-    headers = {"Authorization": f"Bearer {ZAPSIGN_API_TOKEN}"}
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(f"{BASE_URL}/models/", headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
-        # A API retorna {"results": [...]} ou diretamente uma lista
-        if isinstance(data, dict):
-            return data.get("results", [])
-        return data

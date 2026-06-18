@@ -50,7 +50,6 @@ from schemas import (
 from zapsign import consultar_documento as zapsign_consultar
 from zapsign import criar_documento as zapsign_criar
 from zapsign import criar_via_modelo as zapsign_criar_modelo
-from zapsign import listar_modelos as zapsign_listar_modelos
 from zapsign import usar_modelo as zapsign_usar_modelo
 
 logging.basicConfig(level=logging.INFO)
@@ -1232,30 +1231,104 @@ async def admin_remove_bloqueio(
     return RedirectResponse("/admin/agenda?msg=Bloqueio+removido", status_code=303)
 
 
+@app.get("/admin/api/agenda/dia")
+async def admin_agenda_dia(
+    data: str,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    try:
+        dia = date.fromisoformat(data)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida")
+
+    bloqueio = await db.scalar(select(BloqueioAgenda).where(BloqueioAgenda.data == dia))
+    config = await db.scalar(select(ConfigAgenda).where(ConfigAgenda.id == 1))
+    cfg_hi = config.hora_inicio if config else _AGENDA_CONFIG_DEFAULT["hora_inicio"]
+    cfg_hf = config.hora_fim if config else _AGENDA_CONFIG_DEFAULT["hora_fim"]
+    cfg_iv = config.intervalo_minutos if config else _AGENDA_CONFIG_DEFAULT["intervalo_minutos"]
+
+    dia_inicio = datetime(dia.year, dia.month, dia.day, 0, 0, 0)
+    dia_fim = datetime(dia.year, dia.month, dia.day, 23, 59, 59)
+    result = await db.execute(
+        select(Cadastro)
+        .where(Cadastro.agendamento >= dia_inicio, Cadastro.agendamento <= dia_fim)
+        .order_by(Cadastro.agendamento.asc())
+    )
+    cadastros = result.scalars().all()
+
+    slots = _gerar_horarios(cfg_hi, cfg_hf, cfg_iv)
+    agendados = {c.agendamento.strftime("%H:%M"): c for c in cadastros if c.agendamento}
+
+    horarios = []
+    for slot in slots:
+        c = agendados.get(slot)
+        horarios.append({
+            "horario": slot,
+            "livre": c is None,
+            "cadastro": {
+                "id": c.id,
+                "nome": c.nome_completo,
+                "cpf": c.cpf,
+                "telefone": c.telefone,
+                "modalidade": c.modalidade_atendimento or "—",
+                "status": c.status,
+                "etapa2_concluida": c.etapa2_concluida_em is not None,
+            } if c else None,
+        })
+
+    # Agendamentos fora dos slots padrão (ex: config mudou depois)
+    fora_do_slot = [
+        {
+            "horario": c.agendamento.strftime("%H:%M"),
+            "livre": False,
+            "cadastro": {
+                "id": c.id,
+                "nome": c.nome_completo,
+                "cpf": c.cpf,
+                "telefone": c.telefone,
+                "modalidade": c.modalidade_atendimento or "—",
+                "status": c.status,
+                "etapa2_concluida": c.etapa2_concluida_em is not None,
+            },
+        }
+        for c in cadastros
+        if c.agendamento and c.agendamento.strftime("%H:%M") not in slots
+    ]
+
+    dias_semana = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    return {
+        "data": data,
+        "dia_semana": dias_semana[dia.weekday()],
+        "fim_de_semana": dia.weekday() >= 5,
+        "bloqueado": bloqueio is not None,
+        "motivo_bloqueio": bloqueio.motivo if bloqueio else None,
+        "total_slots": len(slots),
+        "total_agendados": len(cadastros),
+        "horarios": horarios,
+        "fora_do_slot": fora_do_slot,
+    }
+
+
 # ─── Admin: diagnóstico ZapSign ───────────────────────────────────────────────
 
 @app.get("/admin/zapsign/modelos")
 async def admin_zapsign_modelos(current=Depends(require_admin_role)):
-    """Lista os modelos (templates) disponíveis na conta ZapSign para verificar o ID correto."""
-    try:
-        modelos = await zapsign_listar_modelos()
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Erro ao consultar ZapSign: {e}")
-
-    configurado = os.environ.get("ZAPSIGN_TEMPLATE_ID", "(não definido)")
-    resultado = []
-    for m in modelos:
-        token = m.get("token") or m.get("id") or "—"
-        resultado.append({
-            "nome": m.get("name") or m.get("nome") or "—",
-            "token": token,
-            "configurado_atualmente": token == configurado,
-        })
+    """Diagnóstico da configuração ZapSign (a API da ZapSign não expõe endpoint de listagem de modelos)."""
+    template_id = os.environ.get("ZAPSIGN_TEMPLATE_ID", "")
+    sandbox = os.environ.get("ZAPSIGN_SANDBOX", "true")
+    token_configurado = bool(os.environ.get("ZAPSIGN_API_TOKEN", ""))
 
     return {
-        "ZAPSIGN_TEMPLATE_ID_atual": configurado,
-        "ZAPSIGN_SANDBOX": os.environ.get("ZAPSIGN_SANDBOX", "true"),
-        "modelos": resultado,
+        "ZAPSIGN_API_TOKEN_configurado": token_configurado,
+        "ZAPSIGN_TEMPLATE_ID": template_id or "(não definido)",
+        "ZAPSIGN_SANDBOX": sandbox,
+        "modo_ativo": "modelo DOCX via ZapSign" if template_id else "PDF gerado em código (fallback)",
+        "observacao": (
+            "A API da ZapSign não oferece endpoint para listar ou consultar modelos. "
+            "Para encontrar o token do modelo, acesse app.zapsign.com.br → Modelos "
+            "e copie o UUID da URL da página do modelo."
+        ),
     }
 
 

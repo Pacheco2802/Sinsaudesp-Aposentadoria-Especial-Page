@@ -116,6 +116,83 @@
     }
     .add-block-row .fld input[type="date"] { width: 155px; }
     .add-block-row .fld input[type="text"] { width: 230px; }
+
+    /* Filtro por dia */
+    .dia-nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .dia-nav input[type="date"] {
+      padding: 7px 10px;
+      border: 1px solid var(--cinza-borda);
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .btn-nav {
+      background: #f0f0f0;
+      border: 1px solid var(--cinza-borda);
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-weight: 600;
+      color: #444;
+    }
+    .btn-nav:hover { background: #e0e0e0; }
+    .btn-hoje {
+      background: var(--verde-escuro);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-hoje:hover { opacity: 0.88; }
+    .dia-resumo {
+      font-size: 0.82rem;
+      color: var(--cinza-texto);
+      margin-bottom: 14px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .dia-resumo strong { color: #333; }
+    .badge-bloqueado {
+      background: #ffebee;
+      color: #c62828;
+      border-radius: 10px;
+      padding: 2px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .badge-fds {
+      background: #fff3e0;
+      color: #e65100;
+      border-radius: 10px;
+      padding: 2px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .slots-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin-top: 4px; }
+    .slots-table th { text-align: left; padding: 8px 12px; background: #f5f5f5; font-weight: 600; font-size: 0.78rem; color: #555; border-bottom: 2px solid var(--cinza-borda); }
+    .slots-table td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    .slots-table tr:last-child td { border-bottom: none; }
+    .slot-livre td { color: #bbb; font-style: italic; }
+    .slot-ocupado td { }
+    .badge-online { background: #e3f2fd; color: #1565c0; border-radius: 10px; padding: 2px 9px; font-size: 0.75rem; font-weight: 600; }
+    .badge-presencial { background: #f3e5f5; color: #6a1b9a; border-radius: 10px; padding: 2px 9px; font-size: 0.75rem; font-weight: 600; }
+    .badge-status { border-radius: 10px; padding: 2px 9px; font-size: 0.75rem; font-weight: 600; background: #f5f5f5; color: #555; }
+    .badge-concluido { background: #e8f5e9; color: #2e7d32; }
+    .link-cadastro { color: var(--verde-escuro); font-weight: 600; text-decoration: none; }
+    .link-cadastro:hover { text-decoration: underline; }
+    #dia-loading { color: #aaa; font-size: 0.85rem; padding: 12px 0; }
+    #dia-vazio { color: #aaa; font-size: 0.88rem; padding: 12px 0; }
   </style>
 </head>
 <body>
@@ -143,6 +220,39 @@
     {% if msg %}
     <div class="msg-ok">{{ msg }}</div>
     {% endif %}
+
+    <!-- Atendimentos do dia -->
+    <div class="agenda-card" style="max-width:860px;">
+      <h3>Atendimentos do dia</h3>
+      <p class="desc">Veja os horários agendados, livres e bloqueados para qualquer data.</p>
+
+      <div class="dia-nav">
+        <button class="btn-nav" id="btn-anterior" title="Dia anterior">&#8592;</button>
+        <input type="date" id="filtro-data" value="{{ hoje }}">
+        <button class="btn-nav" id="btn-proximo" title="Próximo dia">&#8594;</button>
+        <button class="btn-hoje" id="btn-hoje">Hoje</button>
+      </div>
+
+      <div id="dia-resumo" class="dia-resumo" style="display:none;"></div>
+      <div id="dia-loading" style="display:none;">Carregando…</div>
+      <div id="dia-vazio" style="display:none;">Nenhum agendamento neste dia.</div>
+      <div id="dia-tabela-wrap" style="display:none;">
+        <table class="slots-table">
+          <thead>
+            <tr>
+              <th>Horário</th>
+              <th>Nome</th>
+              <th>CPF</th>
+              <th>Telefone</th>
+              <th>Modalidade</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="dia-tbody"></tbody>
+        </table>
+      </div>
+    </div>
 
     <!-- Config de horários -->
     <div class="agenda-card">
@@ -252,5 +362,130 @@
   </main>
 </div>
 
+<script>
+(function () {
+  const inputData = document.getElementById('filtro-data');
+  const btnAnterior = document.getElementById('btn-anterior');
+  const btnProximo = document.getElementById('btn-proximo');
+  const btnHoje = document.getElementById('btn-hoje');
+  const elResumo = document.getElementById('dia-resumo');
+  const elLoading = document.getElementById('dia-loading');
+  const elVazio = document.getElementById('dia-vazio');
+  const elTabelaWrap = document.getElementById('dia-tabela-wrap');
+  const elTbody = document.getElementById('dia-tbody');
+
+  const STATUS_LABEL = {
+    novo: 'Novo',
+    em_andamento: 'Em andamento',
+    documentacao_pendente: 'Doc. pendente',
+    concluido: 'Concluído',
+    cancelado: 'Cancelado',
+  };
+
+  function moverDia(delta) {
+    const d = new Date(inputData.value + 'T12:00:00');
+    d.setDate(d.getDate() + delta);
+    inputData.value = d.toISOString().slice(0, 10);
+    carregar();
+  }
+
+  btnAnterior.addEventListener('click', () => moverDia(-1));
+  btnProximo.addEventListener('click', () => moverDia(1));
+  btnHoje.addEventListener('click', () => { inputData.value = '{{ hoje }}'; carregar(); });
+  inputData.addEventListener('change', carregar);
+
+  async function carregar() {
+    const data = inputData.value;
+    if (!data) return;
+
+    elLoading.style.display = 'block';
+    elResumo.style.display = 'none';
+    elVazio.style.display = 'none';
+    elTabelaWrap.style.display = 'none';
+    elTbody.innerHTML = '';
+
+    let resp;
+    try {
+      resp = await fetch('/admin/api/agenda/dia?data=' + data);
+      if (!resp.ok) throw new Error('Erro ' + resp.status);
+    } catch (e) {
+      elLoading.style.display = 'none';
+      elVazio.textContent = 'Erro ao carregar dados.';
+      elVazio.style.display = 'block';
+      return;
+    }
+
+    const d = await resp.json();
+    elLoading.style.display = 'none';
+
+    // Resumo
+    let resumoHTML = '<strong>' + d.dia_semana + ', ' + formatarData(data) + '</strong>';
+    if (d.bloqueado) {
+      resumoHTML += ' <span class="badge-bloqueado">Dia bloqueado' + (d.motivo_bloqueio ? ': ' + d.motivo_bloqueio : '') + '</span>';
+    } else if (d.fim_de_semana) {
+      resumoHTML += ' <span class="badge-fds">Fim de semana</span>';
+    } else {
+      resumoHTML += '<span>' + d.total_agendados + ' agendado' + (d.total_agendados !== 1 ? 's' : '') + '</span>';
+      resumoHTML += '<span>' + (d.total_slots - d.total_agendados) + ' livre' + ((d.total_slots - d.total_agendados) !== 1 ? 's' : '') + '</span>';
+    }
+    elResumo.innerHTML = resumoHTML;
+    elResumo.style.display = 'flex';
+
+    const todos = [...d.horarios, ...d.fora_do_slot];
+    if (todos.length === 0) {
+      elVazio.textContent = 'Nenhum slot configurado para este dia.';
+      elVazio.style.display = 'block';
+      return;
+    }
+
+    todos.forEach(slot => {
+      const tr = document.createElement('tr');
+      tr.className = slot.livre ? 'slot-livre' : 'slot-ocupado';
+
+      if (slot.livre) {
+        tr.innerHTML =
+          '<td><strong>' + slot.horario + '</strong></td>' +
+          '<td colspan="5" style="color:#ccc;">— livre —</td>' +
+          '<td></td>';
+      } else {
+        const c = slot.cadastro;
+        const modalidadeBadge = c.modalidade === 'online'
+          ? '<span class="badge-online">Online</span>'
+          : c.modalidade === 'presencial'
+            ? '<span class="badge-presencial">Presencial</span>'
+            : c.modalidade;
+        const statusLabel = STATUS_LABEL[c.status] || c.status;
+        const statusClass = c.etapa2_concluida ? ' badge-concluido' : '';
+        tr.innerHTML =
+          '<td><strong>' + slot.horario + '</strong></td>' +
+          '<td>' + escHtml(c.nome) + '</td>' +
+          '<td style="white-space:nowrap;">' + escHtml(c.cpf) + '</td>' +
+          '<td>' + escHtml(c.telefone) + '</td>' +
+          '<td>' + modalidadeBadge + '</td>' +
+          '<td><span class="badge-status' + statusClass + '">' + escHtml(statusLabel) + '</span></td>' +
+          '<td><a href="/admin/cadastro/' + c.id + '" class="link-cadastro" target="_blank">Ver</a></td>';
+      }
+      elTbody.appendChild(tr);
+    });
+
+    elTabelaWrap.style.display = 'block';
+  }
+
+  function formatarData(iso) {
+    const [y, m, d] = iso.split('-');
+    return d + '/' + m + '/' + y;
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  carregar();
+})();
+</script>
 </body>
 </html>
