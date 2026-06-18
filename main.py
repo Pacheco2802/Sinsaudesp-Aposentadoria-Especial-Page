@@ -50,6 +50,7 @@ from schemas import (
 from zapsign import consultar_documento as zapsign_consultar
 from zapsign import criar_documento as zapsign_criar
 from zapsign import criar_via_modelo as zapsign_criar_modelo
+from zapsign import listar_modelos as zapsign_listar_modelos
 from zapsign import usar_modelo as zapsign_usar_modelo
 
 logging.basicConfig(level=logging.INFO)
@@ -1229,6 +1230,33 @@ async def admin_remove_bloqueio(
         await db.delete(bloqueio)
         await db.commit()
     return RedirectResponse("/admin/agenda?msg=Bloqueio+removido", status_code=303)
+
+
+# ─── Admin: diagnóstico ZapSign ───────────────────────────────────────────────
+
+@app.get("/admin/zapsign/modelos")
+async def admin_zapsign_modelos(current=Depends(require_admin_role)):
+    """Lista os modelos (templates) disponíveis na conta ZapSign para verificar o ID correto."""
+    try:
+        modelos = await zapsign_listar_modelos()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erro ao consultar ZapSign: {e}")
+
+    configurado = os.environ.get("ZAPSIGN_TEMPLATE_ID", "(não definido)")
+    resultado = []
+    for m in modelos:
+        token = m.get("token") or m.get("id") or "—"
+        resultado.append({
+            "nome": m.get("name") or m.get("nome") or "—",
+            "token": token,
+            "configurado_atualmente": token == configurado,
+        })
+
+    return {
+        "ZAPSIGN_TEMPLATE_ID_atual": configurado,
+        "ZAPSIGN_SANDBOX": os.environ.get("ZAPSIGN_SANDBOX", "true"),
+        "modelos": resultado,
+    }
 
 
 # ─── Admin: gerenciamento de usuários ─────────────────────────────────────────
