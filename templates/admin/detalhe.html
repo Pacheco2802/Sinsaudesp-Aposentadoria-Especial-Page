@@ -122,6 +122,15 @@
           <span class="info-value" style="font-family: monospace; font-size: 0.85rem;">{{ cadastro.ip_cadastro }}</span>
         </div>
         {% endif %}
+        <div class="info-row">
+          <span class="info-label">Dispositivo</span>
+          <span class="info-value">
+            {% set disp = dispositivo(cadastro.user_agent) %}
+            {% if disp == 'celular' %}📱 Celular / Tablet
+            {% elif disp == 'pc' %}💻 PC / Notebook
+            {% else %}Desconhecido{% endif %}
+          </span>
+        </div>
       </div>
 
       <!-- Nota interna -->

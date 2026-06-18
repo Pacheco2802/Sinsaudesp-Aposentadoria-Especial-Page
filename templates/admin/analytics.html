@@ -60,6 +60,76 @@
       </div>
     </div>
 
+    <!-- Dispositivos -->
+    <div class="detail-card" style="margin-top:24px;">
+      <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">Dispositivos de acesso</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+        <div>
+          <p style="font-size:0.82rem;font-weight:600;color:var(--cinza-texto);margin-bottom:10px;">
+            Leads capturados ({{ leads_disp.pc + leads_disp.celular }} total)
+          </p>
+          <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+            <div style="text-align:center;">
+              <div style="font-size:1.8rem;">💻</div>
+              <div style="font-size:1.4rem;font-weight:700;">{{ leads_disp.pc }}</div>
+              <div style="font-size:0.78rem;color:var(--cinza-texto);">PC / Notebook</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:1.8rem;">📱</div>
+              <div style="font-size:1.4rem;font-weight:700;">{{ leads_disp.celular }}</div>
+              <div style="font-size:0.78rem;color:var(--cinza-texto);">Celular / Tablet</div>
+            </div>
+            {% set total_l = leads_disp.pc + leads_disp.celular %}
+            {% if total_l %}
+            <div style="flex:1;min-width:120px;">
+              <div style="font-size:0.78rem;color:var(--cinza-texto);margin-bottom:4px;">PC</div>
+              <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;margin-bottom:6px;">
+                <div style="background:var(--azul-gradiente);height:100%;width:{{ (leads_disp.pc / total_l * 100) | round | int }}%;border-radius:4px;"></div>
+              </div>
+              <div style="font-size:0.78rem;color:var(--cinza-texto);margin-bottom:4px;">Celular</div>
+              <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
+                <div style="background:var(--verde-principal);height:100%;width:{{ (leads_disp.celular / total_l * 100) | round | int }}%;border-radius:4px;"></div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div>
+          <p style="font-size:0.82rem;font-weight:600;color:var(--cinza-texto);margin-bottom:10px;">
+            Cadastros concluídos ({{ cad_disp.pc + cad_disp.celular }} total)
+          </p>
+          <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+            <div style="text-align:center;">
+              <div style="font-size:1.8rem;">💻</div>
+              <div style="font-size:1.4rem;font-weight:700;">{{ cad_disp.pc }}</div>
+              <div style="font-size:0.78rem;color:var(--cinza-texto);">PC / Notebook</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:1.8rem;">📱</div>
+              <div style="font-size:1.4rem;font-weight:700;">{{ cad_disp.celular }}</div>
+              <div style="font-size:0.78rem;color:var(--cinza-texto);">Celular / Tablet</div>
+            </div>
+            {% set total_c = cad_disp.pc + cad_disp.celular %}
+            {% if total_c %}
+            <div style="flex:1;min-width:120px;">
+              <div style="font-size:0.78rem;color:var(--cinza-texto);margin-bottom:4px;">PC</div>
+              <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;margin-bottom:6px;">
+                <div style="background:var(--azul-gradiente);height:100%;width:{{ (cad_disp.pc / total_c * 100) | round | int }}%;border-radius:4px;"></div>
+              </div>
+              <div style="font-size:0.78rem;color:var(--cinza-texto);margin-bottom:4px;">Celular</div>
+              <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
+                <div style="background:var(--verde-principal);height:100%;width:{{ (cad_disp.celular / total_c * 100) | round | int }}%;border-radius:4px;"></div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <!-- Drop-off por seção -->
     <div class="detail-card" style="margin-top:24px;">
       <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">Onde os usuários chegam no formulário</h3>

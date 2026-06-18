@@ -280,6 +280,18 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
+def _detectar_dispositivo(user_agent: str | None) -> str:
+    if not user_agent:
+        return "desconhecido"
+    ua = user_agent.lower()
+    if any(k in ua for k in ("mobile", "android", "iphone", "ipad", "ipod", "tablet", "phone")):
+        return "celular"
+    return "pc"
+
+
+templates.env.globals["dispositivo"] = _detectar_dispositivo
+
+
 def get_client_ip(request: Request) -> str:
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
@@ -1529,6 +1541,20 @@ async def admin_analytics(
     )
     leads_recentes = leads_recentes_result.scalars().all()
 
+    # Dispositivos — leads capturados no período
+    uas_leads = await db.execute(select(Lead.user_agent).where(Lead.criado_em >= desde))
+    leads_disp = {"pc": 0, "celular": 0}
+    for (ua,) in uas_leads.all():
+        d = _detectar_dispositivo(ua)
+        leads_disp["celular" if d == "celular" else "pc"] += 1
+
+    # Dispositivos — cadastros concluídos no período
+    uas_cad = await db.execute(select(Cadastro.user_agent).where(Cadastro.created_at >= desde))
+    cad_disp = {"pc": 0, "celular": 0}
+    for (ua,) in uas_cad.all():
+        d = _detectar_dispositivo(ua)
+        cad_disp["celular" if d == "celular" else "pc"] += 1
+
     return templates.TemplateResponse(request, "admin/analytics.html", {
         "total_leads": total_leads,
         "leads_convertidos": leads_convertidos,
@@ -1541,6 +1567,8 @@ async def admin_analytics(
         "lembretes_2_conv": lembretes_2_conv,
         "descadastros": descadastros,
         "leads_recentes": leads_recentes,
+        "leads_disp": leads_disp,
+        "cad_disp": cad_disp,
         "dias": dias,
         "admin_email": current.email,
         "is_admin": current.papel == "admin",

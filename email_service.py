@@ -174,16 +174,16 @@ async def send_lembrete_email(to_email: str, lead_id_publico: str, numero: int) 
     else:
         subject = "Última mensagem — análise gratuita ainda disponível"
         corpo_principal = (
-            "<p>Esta é nossa última mensagem sobre sua análise gratuita de "
+            "<p>Você ainda não concluiu o cadastro referente à sua análise gratuita de "
             "<strong>Aposentadoria Especial por Perigo Biológico</strong>.</p>"
             "<p>Se tiver interesse, ainda é possível agendar seu atendimento. "
-            "Após isso, não enviaremos mais lembretes.</p>"
+            "Não perca esta oportunidade!</p>"
         )
         texto_principal = (
-            "Esta é nossa última mensagem sobre sua análise gratuita de Aposentadoria Especial por "
+            "Você ainda não concluiu o cadastro referente à sua análise gratuita de Aposentadoria Especial por "
             "Perigo Biológico.\n\n"
             "Se tiver interesse, ainda é possível agendar seu atendimento. "
-            "Após isso, não enviaremos mais lembretes."
+            "Não perca esta oportunidade!"
         )
 
     body = f"""

@@ -94,6 +94,11 @@
               {% if c.nota_interna %}
               <span title="{{ c.nota_interna }}" style="cursor: help;">📝</span>
               {% endif %}
+              {% set disp = dispositivo(c.user_agent) %}
+              <span title="{{ 'Celular/Tablet' if disp == 'celular' else ('PC / Notebook' if disp == 'pc' else 'Dispositivo desconhecido') }}"
+                    style="font-size:0.75rem;opacity:0.7;cursor:default;">
+                {{ '📱' if disp == 'celular' else '💻' }}
+              </span>
             </td>
             <td style="font-family: monospace; font-size: 0.85rem;">{{ c.cpf }}</td>
             <td>{{ c.hospital }}</td>
