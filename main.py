@@ -43,6 +43,7 @@ from pdf_generator import generate_procuration_pdf
 from schemas import (
     AtendenteUpdateIn,
     CadastroCreate,
+    CadastroUpdateIn,
     EventoSessaoCreate,
     LeadCreate,
     NotaUpdateIn,
@@ -1632,6 +1633,49 @@ async def admin_update_atendente(
     await db.refresh(cadastro)
     nome = cadastro.atendente.nome if cadastro.atendente else None
     return {"ok": True, "atendente_id": cadastro.atendente_id, "atendente_nome": nome}
+
+
+@app.put("/admin/cadastro/{cadastro_id}/dados")
+async def admin_update_dados(
+    cadastro_id: int,
+    payload: CadastroUpdateIn,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    from datetime import date as _date
+    cadastro = await db.get(Cadastro, cadastro_id)
+    if not cadastro:
+        raise HTTPException(status_code=404, detail="Cadastro não encontrado")
+
+    # Verificar CPF duplicado se mudou
+    if payload.cpf != cadastro.cpf:
+        existing = await db.scalar(select(Cadastro).where(Cadastro.cpf == payload.cpf))
+        if existing:
+            raise HTTPException(status_code=400, detail="CPF já cadastrado em outro registro")
+
+    cadastro.nome_completo = payload.nome_completo
+    cadastro.cpf = payload.cpf
+    cadastro.rg = payload.rg
+    cadastro.data_nascimento = _date.fromisoformat(payload.data_nascimento)
+    cadastro.estado_civil = payload.estado_civil
+    cadastro.nacionalidade = payload.nacionalidade
+    cadastro.telefone = payload.telefone
+    cadastro.email = payload.email
+    cadastro.hospital = payload.hospital
+    cadastro.cargo = payload.cargo
+    cadastro.tempo_servico = payload.tempo_servico
+    cadastro.filiado = payload.filiado
+    cadastro.recebe_outro_beneficio = payload.recebe_outro_beneficio
+    cadastro.cep = payload.cep
+    cadastro.logradouro = payload.logradouro
+    cadastro.numero = payload.numero
+    cadastro.complemento = payload.complemento
+    cadastro.bairro = payload.bairro
+    cadastro.cidade = payload.cidade
+    cadastro.uf = payload.uf
+    cadastro.updated_at = datetime.now()
+    await db.commit()
+    return {"ok": True}
 
 
 @app.post("/admin/cadastro/{cadastro_id}/tipo-documento/{doc_id}")

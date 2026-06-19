@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cadastro #{{ '%06d' % cadastro.id }} — SinSaúdeSP Admin</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    #form-editar-dados .field-group { display: flex; flex-direction: column; gap: 4px; }
+    #form-editar-dados .field-group label { font-size: 0.78rem; font-weight: 600; color: #444; }
+    #form-editar-dados .field-group input,
+    #form-editar-dados .field-group select {
+      padding: 7px 10px;
+      border: 1px solid var(--cinza-borda);
+      border-radius: 6px;
+      font-size: 0.88rem;
+      width: 100%;
+    }
+    #form-editar-dados .field-group input:focus,
+    #form-editar-dados .field-group select:focus { outline: 2px solid var(--verde-principal); }
+  </style>
 </head>
 <body>
 
@@ -28,12 +42,127 @@
 
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
       <a href="/admin" class="admin-back">← Voltar ao dashboard</a>
-      {% if is_admin %}
-      <button type="button" class="btn-outline" onclick="excluirCadastro({{ cadastro.id }})"
-              style="font-size: 0.78rem; padding: 6px 14px; color: #c62828; border-color: #c62828;">
-        🗑 Excluir cadastro
-      </button>
-      {% endif %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-outline" id="btn-editar-dados" onclick="toggleEditarDados()"
+                style="font-size: 0.78rem; padding: 6px 14px;">
+          ✏️ Editar dados
+        </button>
+        {% if is_admin %}
+        <button type="button" class="btn-outline" onclick="excluirCadastro({{ cadastro.id }})"
+                style="font-size: 0.78rem; padding: 6px 14px; color: #c62828; border-color: #c62828;">
+          🗑 Excluir cadastro
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Formulário de edição de dados -->
+    <div id="form-editar-dados" style="display:none;background:#fff;border:1px solid var(--cinza-borda);border-radius:var(--radius-secondary);padding:24px 28px;margin-bottom:24px;box-shadow:var(--shadow-card);">
+      <h3 style="font-size:1rem;font-weight:700;color:var(--verde-escuro);margin:0 0 18px;">✏️ Editar dados do cadastro</h3>
+      <p style="font-size:0.82rem;color:var(--cinza-texto);margin-bottom:18px;">Estes dados serão usados para preencher o documento da procuração na Etapa 2. Salve antes de gerar o documento.</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px 20px;">
+        <div class="field-group">
+          <label>Nome completo</label>
+          <input type="text" id="ed-nome" value="{{ cadastro.nome_completo }}" maxlength="255">
+        </div>
+        <div class="field-group">
+          <label>CPF</label>
+          <input type="text" id="ed-cpf" value="{{ cadastro.cpf }}" maxlength="14">
+        </div>
+        <div class="field-group">
+          <label>RG</label>
+          <input type="text" id="ed-rg" value="{{ cadastro.rg or '' }}" maxlength="20">
+        </div>
+        <div class="field-group">
+          <label>Data de nascimento</label>
+          <input type="date" id="ed-nascimento" value="{{ cadastro.data_nascimento.isoformat() if cadastro.data_nascimento else '' }}">
+        </div>
+        <div class="field-group">
+          <label>Estado civil</label>
+          <select id="ed-estado-civil">
+            {% for ec in ['Solteiro(a)','Casado(a)','Divorciado(a)','Viúvo(a)','União estável','Separado(a)'] %}
+            <option value="{{ ec }}" {% if cadastro.estado_civil == ec %}selected{% endif %}>{{ ec }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Nacionalidade</label>
+          <input type="text" id="ed-nacionalidade" value="{{ cadastro.nacionalidade or '' }}" maxlength="40">
+        </div>
+        <div class="field-group">
+          <label>Telefone</label>
+          <input type="text" id="ed-telefone" value="{{ cadastro.telefone }}" maxlength="20">
+        </div>
+        <div class="field-group">
+          <label>E-mail</label>
+          <input type="email" id="ed-email" value="{{ cadastro.email }}" maxlength="255">
+        </div>
+        <div class="field-group">
+          <label>Hospital / Empresa</label>
+          <input type="text" id="ed-hospital" value="{{ cadastro.hospital }}" maxlength="255">
+        </div>
+        <div class="field-group">
+          <label>Cargo / Função</label>
+          <input type="text" id="ed-cargo" value="{{ cadastro.cargo }}" maxlength="255">
+        </div>
+        <div class="field-group">
+          <label>Tempo de serviço</label>
+          <input type="text" id="ed-tempo-servico" value="{{ cadastro.tempo_servico }}" maxlength="100">
+        </div>
+        <div class="field-group">
+          <label>CEP</label>
+          <input type="text" id="ed-cep" value="{{ cadastro.cep or '' }}" maxlength="9">
+        </div>
+        <div class="field-group" style="grid-column:span 2;">
+          <label>Logradouro</label>
+          <input type="text" id="ed-logradouro" value="{{ cadastro.logradouro or '' }}" maxlength="255">
+        </div>
+        <div class="field-group">
+          <label>Número</label>
+          <input type="text" id="ed-numero" value="{{ cadastro.numero or '' }}" maxlength="20">
+        </div>
+        <div class="field-group">
+          <label>Complemento</label>
+          <input type="text" id="ed-complemento" value="{{ cadastro.complemento or '' }}" maxlength="100">
+        </div>
+        <div class="field-group">
+          <label>Bairro</label>
+          <input type="text" id="ed-bairro" value="{{ cadastro.bairro or '' }}" maxlength="100">
+        </div>
+        <div class="field-group">
+          <label>Cidade</label>
+          <input type="text" id="ed-cidade" value="{{ cadastro.cidade or '' }}" maxlength="100">
+        </div>
+        <div class="field-group">
+          <label>UF</label>
+          <select id="ed-uf">
+            {% for uf in ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
+            <option value="{{ uf }}" {% if cadastro.uf == uf %}selected{% endif %}>{{ uf }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Filiado ao SinSaúdeSP</label>
+          <select id="ed-filiado">
+            <option value="true" {% if cadastro.filiado %}selected{% endif %}>Sim</option>
+            <option value="false" {% if not cadastro.filiado %}selected{% endif %}>Não</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Benefício de outro regime</label>
+          <select id="ed-outro-regime">
+            <option value="false" {% if not cadastro.recebe_outro_beneficio %}selected{% endif %}>Não recebe</option>
+            <option value="true" {% if cadastro.recebe_outro_beneficio %}selected{% endif %}>Recebe</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px;align-items:center;">
+        <button type="button" class="btn-secondary" onclick="salvarDados({{ cadastro.id }})">Salvar alterações</button>
+        <button type="button" class="btn-outline" onclick="toggleEditarDados()">Cancelar</button>
+        <span id="ed-feedback" style="font-size:0.82rem;display:none;"></span>
+      </div>
     </div>
 
     <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 24px; flex-wrap: wrap;">
@@ -351,6 +480,59 @@ async function updateAtendente(cadastroId, atendenteId) {
     alert('Erro: ' + (err.detail || resp.status));
     return;
   }
+  window.location.reload();
+}
+
+function toggleEditarDados() {
+  const form = document.getElementById('form-editar-dados');
+  const btn = document.getElementById('btn-editar-dados');
+  const visible = form.style.display !== 'none';
+  form.style.display = visible ? 'none' : 'block';
+  btn.textContent = visible ? '✏️ Editar dados' : '✕ Fechar edição';
+}
+
+async function salvarDados(cadastroId) {
+  const feedback = document.getElementById('ed-feedback');
+  feedback.style.display = 'none';
+
+  const payload = {
+    nome_completo: document.getElementById('ed-nome').value.trim(),
+    cpf: document.getElementById('ed-cpf').value.trim(),
+    rg: document.getElementById('ed-rg').value.trim(),
+    data_nascimento: document.getElementById('ed-nascimento').value,
+    estado_civil: document.getElementById('ed-estado-civil').value,
+    nacionalidade: document.getElementById('ed-nacionalidade').value.trim(),
+    telefone: document.getElementById('ed-telefone').value.trim(),
+    email: document.getElementById('ed-email').value.trim(),
+    hospital: document.getElementById('ed-hospital').value.trim(),
+    cargo: document.getElementById('ed-cargo').value.trim(),
+    tempo_servico: document.getElementById('ed-tempo-servico').value.trim(),
+    filiado: document.getElementById('ed-filiado').value === 'true',
+    recebe_outro_beneficio: document.getElementById('ed-outro-regime').value === 'true',
+    cep: document.getElementById('ed-cep').value.trim(),
+    logradouro: document.getElementById('ed-logradouro').value.trim(),
+    numero: document.getElementById('ed-numero').value.trim(),
+    complemento: document.getElementById('ed-complemento').value.trim(),
+    bairro: document.getElementById('ed-bairro').value.trim(),
+    cidade: document.getElementById('ed-cidade').value.trim(),
+    uf: document.getElementById('ed-uf').value,
+  };
+
+  const resp = await fetch('/admin/cadastro/' + cadastroId + '/dados', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    const msg = err.detail || (err.detail?.[0]?.msg) || 'Erro ao salvar';
+    feedback.textContent = '✕ ' + (typeof msg === 'string' ? msg : JSON.stringify(msg));
+    feedback.style.color = '#c62828';
+    feedback.style.display = 'inline';
+    return;
+  }
+
   window.location.reload();
 }
 </script>

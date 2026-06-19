@@ -237,6 +237,116 @@ class AtendenteUpdateIn(BaseModel):
     atendente_id: Optional[int] = None
 
 
+class CadastroUpdateIn(BaseModel):
+    nome_completo: str
+    cpf: str
+    rg: str
+    data_nascimento: str
+    estado_civil: str
+    nacionalidade: str
+    telefone: str
+    email: str
+    hospital: str
+    cargo: str
+    tempo_servico: str
+    filiado: bool
+    recebe_outro_beneficio: bool
+    cep: str
+    logradouro: str
+    numero: str
+    complemento: str = ""
+    bairro: str
+    cidade: str
+    uf: str
+
+    @field_validator("nome_completo")
+    @classmethod
+    def val_nome(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3 or len(v) > 255:
+            raise ValueError("Nome inválido")
+        return v
+
+    @field_validator("cpf")
+    @classmethod
+    def val_cpf(cls, v: str) -> str:
+        digits = re.sub(r"\D", "", v)
+        if not _validate_cpf_digits(digits):
+            raise ValueError("CPF inválido")
+        return f"{digits[:3]}.{digits[3:6]}.{digits[6:9]}-{digits[9:]}"
+
+    @field_validator("rg")
+    @classmethod
+    def val_rg(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3 or len(v) > 20:
+            raise ValueError("RG inválido")
+        return v
+
+    @field_validator("data_nascimento")
+    @classmethod
+    def val_data_nascimento(cls, v: str) -> str:
+        v = v.strip()
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Data de nascimento inválida (use YYYY-MM-DD)")
+        return v
+
+    @field_validator("estado_civil")
+    @classmethod
+    def val_estado_civil(cls, v: str) -> str:
+        v = v.strip()
+        validos = {"Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União estável", "Separado(a)"}
+        if v not in validos:
+            raise ValueError("Estado civil inválido")
+        return v
+
+    @field_validator("telefone")
+    @classmethod
+    def val_telefone(cls, v: str) -> str:
+        digits = re.sub(r"\D", "", v)
+        if len(digits) < 10 or len(digits) > 13:
+            raise ValueError("Telefone inválido")
+        return v.strip()
+
+    @field_validator("cep")
+    @classmethod
+    def val_cep(cls, v: str) -> str:
+        digits = re.sub(r"\D", "", v)
+        if len(digits) != 8:
+            raise ValueError("CEP inválido")
+        return f"{digits[:5]}-{digits[5:]}"
+
+    @field_validator("uf")
+    @classmethod
+    def val_uf(cls, v: str) -> str:
+        v = v.strip().upper()
+        ufs = {
+            "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS",
+            "MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC",
+            "SP","SE","TO",
+        }
+        if v not in ufs:
+            raise ValueError("UF inválida")
+        return v
+
+    @field_validator("logradouro", "numero", "bairro", "cidade", "hospital", "cargo", "tempo_servico", "nacionalidade")
+    @classmethod
+    def val_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Campo obrigatório")
+        if len(v) > 255:
+            raise ValueError("Texto muito longo")
+        return v
+
+    @field_validator("complemento")
+    @classmethod
+    def val_complemento(cls, v: str) -> str:
+        return v.strip()[:100]
+
+
 class ZapSignCreateIn(BaseModel):
     nome: str
     cpf: str
