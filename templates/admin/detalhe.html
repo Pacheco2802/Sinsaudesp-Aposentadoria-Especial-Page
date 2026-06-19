@@ -196,6 +196,33 @@
         </div>
       </div>
 
+      <!-- Atendente responsável -->
+      <div class="detail-card">
+        <h3>⚖️ Atendente responsável</h3>
+        {% if current_papel == "admin" %}
+          <div class="field-group">
+            <label for="select-atendente" style="font-size:0.8rem;font-weight:600;color:#444;display:block;margin-bottom:4px;">Atribuir a</label>
+            <select id="select-atendente" onchange="updateAtendente({{ cadastro.id }}, this.value || null)" style="padding:8px 10px;border:1px solid var(--cinza-borda);border-radius:6px;font-size:0.9rem;width:100%;max-width:280px;">
+              <option value="">— Sem atribuição —</option>
+              {% for j in juridicos %}
+              <option value="{{ j.id }}" {% if cadastro.atendente_id == j.id %}selected{% endif %}>{{ j.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <p id="atendente-feedback" style="font-size:0.78rem;color:var(--verde-principal);margin-top:6px;display:none;">Salvo ✓</p>
+        {% elif current_papel == "juridico" %}
+          {% if cadastro.atendente_id == current_user_id %}
+            <p style="font-size:0.9rem;font-weight:600;color:var(--verde-principal);margin-bottom:8px;">✓ Atribuído a você</p>
+            <button type="button" class="btn-outline" onclick="updateAtendente({{ cadastro.id }}, null)" style="font-size:0.8rem;padding:6px 14px;">Liberar caso</button>
+          {% elif cadastro.atendente_id %}
+            <p style="font-size:0.9rem;color:var(--cinza-texto);">{{ cadastro.atendente.nome if cadastro.atendente else '—' }}</p>
+          {% else %}
+            <p style="font-size:0.88rem;color:var(--cinza-texto);margin-bottom:10px;">Nenhum atendente atribuído.</p>
+            <button type="button" class="btn-secondary" onclick="updateAtendente({{ cadastro.id }}, {{ current_user_id }})">Puxar para mim</button>
+          {% endif %}
+        {% endif %}
+      </div>
+
       <!-- Etapa 2 -->
       <div class="detail-card">
         <h3>📑 Etapa 2 — Documentação e Procuração</h3>
@@ -312,5 +339,20 @@
 </div>
 
 <script src="/static/js/main.js"></script>
+<script>
+async function updateAtendente(cadastroId, atendenteId) {
+  const resp = await fetch('/admin/cadastro/' + cadastroId + '/atendente', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ atendente_id: atendenteId }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    alert('Erro: ' + (err.detail || resp.status));
+    return;
+  }
+  window.location.reload();
+}
+</script>
 </body>
 </html>

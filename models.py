@@ -56,6 +56,13 @@ class Cadastro(Base):
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now(), onupdate=func.now())
 
+    atendente_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("admin_usuarios.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    atendente: Mapped[Optional["AdminUsuario"]] = relationship(
+        "AdminUsuario", foreign_keys="[Cadastro.atendente_id]", lazy="selectin"
+    )
+
     documentos: Mapped[list["Documento"]] = relationship(
         "Documento",
         back_populates="cadastro",
@@ -89,6 +96,10 @@ class AdminUsuario(Base):
     # "admin" = acesso total (gerencia usuários) | "juridico" = gerencia cadastros
     papel: Mapped[str] = mapped_column(String(20), nullable=False, server_default="juridico")
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+
+    cadastros_atribuidos: Mapped[list["Cadastro"]] = relationship(
+        "Cadastro", back_populates="atendente", foreign_keys="[Cadastro.atendente_id]"
+    )
 
 
 class Lead(Base):

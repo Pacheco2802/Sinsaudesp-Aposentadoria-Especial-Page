@@ -233,6 +233,10 @@ class NotaUpdateIn(BaseModel):
         return v
 
 
+class AtendenteUpdateIn(BaseModel):
+    atendente_id: Optional[int] = None
+
+
 class ZapSignCreateIn(BaseModel):
     nome: str
     cpf: str

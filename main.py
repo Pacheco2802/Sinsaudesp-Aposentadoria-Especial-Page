@@ -41,6 +41,7 @@ from email_service import (
 from models import AdminUsuario, BloqueioAgenda, Cadastro, ConfigAgenda, Documento, EventoSessao, Lead
 from pdf_generator import generate_procuration_pdf
 from schemas import (
+    AtendenteUpdateIn,
     CadastroCreate,
     EventoSessaoCreate,
     LeadCreate,
@@ -249,6 +250,9 @@ async def lifespan(app: FastAPI):
                 criado_por VARCHAR(255) NOT NULL DEFAULT 'sistema'
             )""",
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_bloqueios_data ON bloqueios_agenda(data)",
+            # Atribuição de atendente jurídico aos cadastros
+            "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS atendente_id INTEGER REFERENCES admin_usuarios(id) ON DELETE SET NULL",
+            "CREATE INDEX IF NOT EXISTS ix_cadastros_atendente_id ON cadastros(atendente_id)",
         ):
             await conn.execute(text(ddl))
     logger.info("Database tables created/verified")
@@ -1154,6 +1158,7 @@ async def admin_agenda_page(
         "hoje_date": hoje,
         "admin_email": current.email,
         "is_admin": current.papel == "admin",
+        "current_user_id": current.id,
         "msg": msg,
     })
 
@@ -1274,6 +1279,8 @@ async def admin_agenda_dia(
                 "modalidade": c.modalidade_atendimento or "—",
                 "status": c.status,
                 "etapa2_concluida": c.etapa2_concluida_em is not None,
+                "atendente_id": c.atendente_id,
+                "atendente_nome": c.atendente.nome if c.atendente else None,
             } if c else None,
         })
 
@@ -1290,6 +1297,8 @@ async def admin_agenda_dia(
                 "modalidade": c.modalidade_atendimento or "—",
                 "status": c.status,
                 "etapa2_concluida": c.etapa2_concluida_em is not None,
+                "atendente_id": c.atendente_id,
+                "atendente_nome": c.atendente.nome if c.atendente else None,
             },
         }
         for c in cadastros
@@ -1305,6 +1314,7 @@ async def admin_agenda_dia(
         "motivo_bloqueio": bloqueio.motivo if bloqueio else None,
         "total_slots": len(slots),
         "total_agendados": len(cadastros),
+        "current_user_id": current.id,
         "horarios": horarios,
         "fora_do_slot": fora_do_slot,
     }
@@ -1422,6 +1432,7 @@ async def admin_dashboard(
     status: Optional[str] = None,
     filiado: Optional[str] = None,
     q: Optional[str] = None,
+    atendente: Optional[str] = None,
     page: int = 1,
     current=Depends(get_current_admin_obj),
     db=Depends(get_db),
@@ -1444,6 +1455,10 @@ async def admin_dashboard(
                 Cadastro.cpf.contains(q),
             )
         )
+    if atendente == "meu":
+        conditions.append(Cadastro.atendente_id == current.id)
+    elif atendente and atendente.isdigit():
+        conditions.append(Cadastro.atendente_id == int(atendente))
 
     where_clause = and_(*conditions) if conditions else True
 
@@ -1471,14 +1486,22 @@ async def admin_dashboard(
         "concluido": stats_raw.get("concluido", 0),
     }
 
+    juridicos = []
+    if current.papel == "admin":
+        res_j = await db.execute(
+            select(AdminUsuario).where(AdminUsuario.papel == "juridico").order_by(AdminUsuario.nome)
+        )
+        juridicos = res_j.scalars().all()
+
     return templates.TemplateResponse(request, "admin/dashboard.html", {
         "cadastros": cadastros,
         "stats": stats,
         "page": page,
         "pages": pages,
-        "filters": {"status": status or "", "filiado": filiado or "", "q": q or ""},
+        "filters": {"status": status or "", "filiado": filiado or "", "q": q or "", "atendente": atendente or ""},
         "admin_email": admin_email,
         "is_admin": current.papel == "admin",
+        "juridicos": juridicos,
     })
 
 
@@ -1498,11 +1521,21 @@ async def admin_detalhe(
     if not cadastro:
         raise HTTPException(status_code=404, detail="Cadastro não encontrado")
 
+    juridicos = []
+    if current.papel == "admin":
+        res_j = await db.execute(
+            select(AdminUsuario).where(AdminUsuario.papel == "juridico").order_by(AdminUsuario.nome)
+        )
+        juridicos = res_j.scalars().all()
+
     return templates.TemplateResponse(request, "admin/detalhe.html", {
         "cadastro": cadastro,
         "admin_email": current.email,
         "is_admin": current.papel == "admin",
         "status_opcoes": ["novo", "em_andamento", "concluido"],
+        "juridicos": juridicos,
+        "current_user_id": current.id,
+        "current_papel": current.papel,
     })
 
 
@@ -1559,6 +1592,46 @@ async def admin_update_nota(
     cadastro.updated_at = datetime.now()
     await db.commit()
     return {"ok": True}
+
+
+@app.put("/admin/cadastro/{cadastro_id}/atendente")
+async def admin_update_atendente(
+    cadastro_id: int,
+    payload: AtendenteUpdateIn,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    cadastro = await db.get(Cadastro, cadastro_id)
+    if not cadastro:
+        raise HTTPException(status_code=404, detail="Cadastro não encontrado")
+
+    novo_id = payload.atendente_id
+
+    if current.papel == "admin":
+        if novo_id is not None:
+            alvo = await db.get(AdminUsuario, novo_id)
+            if not alvo or alvo.papel != "juridico":
+                raise HTTPException(status_code=400, detail="Atendente inválido ou não é jurídico")
+        cadastro.atendente_id = novo_id
+    elif current.papel == "juridico":
+        if novo_id is None:
+            if cadastro.atendente_id != current.id:
+                raise HTTPException(status_code=403, detail="Você não pode liberar um caso que não é seu")
+            cadastro.atendente_id = None
+        elif novo_id == current.id:
+            if cadastro.atendente_id is not None and cadastro.atendente_id != current.id:
+                raise HTTPException(status_code=403, detail="Este caso já está atribuído a outro atendente")
+            cadastro.atendente_id = current.id
+        else:
+            raise HTTPException(status_code=403, detail="Jurídico não pode redistribuir para outro atendente")
+    else:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    cadastro.updated_at = datetime.now()
+    await db.commit()
+    await db.refresh(cadastro)
+    nome = cadastro.atendente.nome if cadastro.atendente else None
+    return {"ok": True, "atendente_id": cadastro.atendente_id, "atendente_nome": nome}
 
 
 @app.post("/admin/cadastro/{cadastro_id}/tipo-documento/{doc_id}")

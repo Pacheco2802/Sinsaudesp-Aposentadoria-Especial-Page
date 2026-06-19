@@ -62,8 +62,21 @@
         <option value="nao" {% if filters.filiado == 'nao' %}selected{% endif %}>Não filiados</option>
       </select>
       <input type="text" name="q" value="{{ filters.q }}" placeholder="Buscar por nome ou CPF…">
+      {% if is_admin %}
+      <select name="atendente">
+        <option value="">Todos os atendentes</option>
+        {% for j in juridicos %}
+        <option value="{{ j.id }}" {% if filters.atendente == j.id|string %}selected{% endif %}>{{ j.nome }}</option>
+        {% endfor %}
+      </select>
+      {% else %}
+      <select name="atendente">
+        <option value="" {% if not filters.atendente %}selected{% endif %}>Todos os casos</option>
+        <option value="meu" {% if filters.atendente == 'meu' %}selected{% endif %}>Meus casos</option>
+      </select>
+      {% endif %}
       <button type="submit" class="btn-secondary">Filtrar</button>
-      {% if filters.status or filters.filiado or filters.q %}
+      {% if filters.status or filters.filiado or filters.q or filters.atendente %}
       <a href="/admin" class="btn-outline">Limpar</a>
       {% endif %}
     </form>
@@ -82,6 +95,7 @@
             <th>Atendimento</th>
             <th>Etapa</th>
             <th>Status</th>
+            <th>Atendente</th>
             <th>Ações</th>
           </tr>
         </thead>
@@ -131,6 +145,9 @@
                 {{ c.status.replace('_', ' ') }}
               </span>
             </td>
+            <td style="font-size:0.8rem;color:var(--cinza-texto);white-space:nowrap;">
+              {% if c.atendente %}{{ c.atendente.nome }}{% else %}<span style="color:#ccc;">—</span>{% endif %}
+            </td>
             <td>
               <a href="/admin/cadastro/{{ c.id }}" class="btn-secondary" style="font-size: 0.78rem; padding: 6px 12px;">
                 Ver
@@ -146,11 +163,11 @@
     {% if pages > 1 %}
     <div class="pagination">
       {% if page > 1 %}
-      <a href="?page={{ page - 1 }}&status={{ filters.status }}&filiado={{ filters.filiado }}&q={{ filters.q }}">← Anterior</a>
+      <a href="?page={{ page - 1 }}&status={{ filters.status }}&filiado={{ filters.filiado }}&q={{ filters.q }}&atendente={{ filters.atendente }}">← Anterior</a>
       {% endif %}
       <span class="current">{{ page }} / {{ pages }}</span>
       {% if page < pages %}
-      <a href="?page={{ page + 1 }}&status={{ filters.status }}&filiado={{ filters.filiado }}&q={{ filters.q }}">Próxima →</a>
+      <a href="?page={{ page + 1 }}&status={{ filters.status }}&filiado={{ filters.filiado }}&q={{ filters.q }}&atendente={{ filters.atendente }}">Próxima →</a>
       {% endif %}
     </div>
     {% endif %}
