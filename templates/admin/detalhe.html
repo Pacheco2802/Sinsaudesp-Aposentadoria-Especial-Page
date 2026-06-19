@@ -59,7 +59,16 @@
     <!-- Formulário de edição de dados -->
     <div id="form-editar-dados" style="display:none;background:#fff;border:1px solid var(--cinza-borda);border-radius:var(--radius-secondary);padding:24px 28px;margin-bottom:24px;box-shadow:var(--shadow-card);">
       <h3 style="font-size:1rem;font-weight:700;color:var(--verde-escuro);margin:0 0 18px;">✏️ Editar dados do cadastro</h3>
-      <p style="font-size:0.82rem;color:var(--cinza-texto);margin-bottom:18px;">Estes dados serão usados para preencher o documento da procuração na Etapa 2. Salve antes de gerar o documento.</p>
+      <p style="font-size:0.82rem;color:var(--cinza-texto);margin-bottom:10px;">Estes dados serão usados para preencher o documento da procuração na Etapa 2. Salve antes de gerar o documento.</p>
+      {% if cadastro.zapsign_doc_token %}
+      <div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:0.82rem;color:#e65100;">
+        ⚠️ <strong>Atenção:</strong> o cliente já iniciou a assinatura — o documento foi enviado à ZapSign com os dados anteriores. Alterações feitas aqui <strong>não serão refletidas</strong> no documento em andamento.
+      </div>
+      {% else %}
+      <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:0.82rem;color:#2e7d32;">
+        ✓ O documento ainda não foi gerado. As alterações serão aplicadas quando o cliente assinar.
+      </div>
+      {% endif %}
 
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px 20px;">
         <div class="field-group">
