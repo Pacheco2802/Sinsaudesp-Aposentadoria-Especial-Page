@@ -38,7 +38,16 @@ from email_service import (
     send_lembrete_email,
     smtp_status,
 )
-from models import AdminUsuario, BloqueioAgenda, Cadastro, ConfigAgenda, Documento, EventoSessao, Lead
+from models import (
+    AdminUsuario,
+    BloqueioAgenda,
+    Cadastro,
+    ConfigAgenda,
+    Documento,
+    EventoSessao,
+    HistoricoCadastro,
+    Lead,
+)
 from pdf_generator import generate_procuration_pdf
 from schemas import (
     AtendenteUpdateIn,
@@ -254,6 +263,20 @@ async def lifespan(app: FastAPI):
             # Atribuição de atendente jurídico aos cadastros
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS atendente_id INTEGER REFERENCES admin_usuarios(id) ON DELETE SET NULL",
             "CREATE INDEX IF NOT EXISTS ix_cadastros_atendente_id ON cadastros(atendente_id)",
+            # Histórico de ações por cadastro
+            """CREATE TABLE IF NOT EXISTS historico_cadastro (
+                id SERIAL PRIMARY KEY,
+                cadastro_id INTEGER NOT NULL REFERENCES cadastros(id) ON DELETE CASCADE,
+                tipo VARCHAR(40) NOT NULL,
+                ator_email VARCHAR(255),
+                ator_nome VARCHAR(255),
+                descricao TEXT NOT NULL,
+                valor_anterior VARCHAR(255),
+                valor_novo VARCHAR(255),
+                criado_em TIMESTAMP NOT NULL DEFAULT now()
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_historico_cadastro_id ON historico_cadastro(cadastro_id)",
+            "CREATE INDEX IF NOT EXISTS ix_historico_tipo ON historico_cadastro(tipo)",
         ):
             await conn.execute(text(ddl))
     logger.info("Database tables created/verified")
@@ -302,6 +325,34 @@ def get_client_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
+
+
+def registrar_historico(
+    db,
+    cadastro_id: int,
+    tipo: str,
+    descricao: str,
+    ator: Optional[AdminUsuario] = None,
+    valor_anterior: Optional[str] = None,
+    valor_novo: Optional[str] = None,
+) -> None:
+    """Adiciona um evento ao histórico do cadastro (não commita — chame db.commit() depois)."""
+    db.add(HistoricoCadastro(
+        cadastro_id=cadastro_id,
+        tipo=tipo,
+        ator_email=ator.email if ator else None,
+        ator_nome=ator.nome if ator else None,
+        descricao=descricao,
+        valor_anterior=(valor_anterior[:255] if valor_anterior else None),
+        valor_novo=(valor_novo[:255] if valor_novo else None),
+    ))
+
+
+STATUS_LABELS = {
+    "novo": "Novo",
+    "em_andamento": "Em andamento",
+    "concluido": "Concluído",
+}
 
 
 def safe_file_path(base_dir: Path, *parts: str) -> Path:
@@ -937,6 +988,16 @@ async def api_cadastro(
     # CNIS é opcional: move se houver upload na sessão
     await _mover_documentos_sessao(db, session_id, cadastro_id)
 
+    registrar_historico(
+        db,
+        cadastro_id=cadastro_id,
+        tipo="cadastro_criado",
+        descricao=(
+            f"Cadastro criado pelo cliente — agendamento em "
+            f"{slot.strftime('%d/%m/%Y às %H:%M')} ({data.modalidade_atendimento})"
+        ),
+    )
+
     await db.commit()
 
     # Vincula o lead ao cadastro se fornecido
@@ -1028,10 +1089,30 @@ async def api_etapa2_submit(
 
     await _mover_documentos_sessao(db, session_id, cadastro.id)
 
+    status_anterior = cadastro.status
     cadastro.zapsign_doc_token = zapsign_doc_token.strip()
     cadastro.etapa2_concluida_em = datetime.now()
     cadastro.status = "em_andamento"
     cadastro.updated_at = datetime.now()
+
+    registrar_historico(
+        db,
+        cadastro_id=cadastro.id,
+        tipo="etapa2_concluida",
+        descricao="Cliente enviou a documentação e assinou a procuração",
+    )
+    if status_anterior != "em_andamento":
+        registrar_historico(
+            db,
+            cadastro_id=cadastro.id,
+            tipo="status_alterado",
+            descricao=(
+                f"Status alterado automaticamente para \"Em andamento\""
+                f" (após conclusão da Etapa 2)"
+            ),
+            valor_anterior=status_anterior,
+            valor_novo="em_andamento",
+        )
     await db.commit()
 
     return JSONResponse({"redirect": f"/obrigado?protocolo={cadastro.id:06d}&etapa=2"})
@@ -1041,7 +1122,7 @@ async def api_etapa2_submit(
 async def admin_liberar_etapa2(
     request: Request,
     cadastro_id: int,
-    admin_email: str = Depends(get_current_admin),
+    current=Depends(get_current_admin_obj),
     db=Depends(get_db),
 ):
     cadastro = await db.get(Cadastro, cadastro_id)
@@ -1050,10 +1131,21 @@ async def admin_liberar_etapa2(
     if cadastro.etapa2_concluida_em:
         raise HTTPException(status_code=409, detail="Etapa 2 já concluída para este cadastro")
 
+    primeira_liberacao = cadastro.etapa2_liberada_em is None
     if not cadastro.etapa2_token:
         cadastro.etapa2_token = secrets.token_urlsafe(32)
     cadastro.etapa2_liberada_em = datetime.now()
     cadastro.updated_at = datetime.now()
+
+    registrar_historico(
+        db,
+        cadastro_id=cadastro.id,
+        tipo="etapa2_liberada",
+        descricao=("Etapa 2 liberada e e-mail enviado ao cliente"
+                   if primeira_liberacao
+                   else "Etapa 2 reenviada (e-mail reenviado ao cliente)"),
+        ator=current,
+    )
     await db.commit()
 
     base = BASE_URL or str(request.base_url).rstrip("/")
@@ -1306,6 +1398,15 @@ async def admin_agenda_dia(
         if c.agendamento and c.agendamento.strftime("%H:%M") not in slots
     ]
 
+    res_j = await db.execute(
+        select(AdminUsuario)
+        .where(AdminUsuario.papel.in_(("admin", "juridico")))
+        .order_by(AdminUsuario.nome)
+    )
+    juridicos = [
+        {"id": j.id, "nome": j.nome, "papel": j.papel} for j in res_j.scalars().all()
+    ]
+
     dias_semana = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
     return {
         "data": data,
@@ -1316,6 +1417,8 @@ async def admin_agenda_dia(
         "total_slots": len(slots),
         "total_agendados": len(cadastros),
         "current_user_id": current.id,
+        "current_papel": current.papel,
+        "juridicos": juridicos,
         "horarios": horarios,
         "fora_do_slot": fora_do_slot,
     }
@@ -1490,7 +1593,9 @@ async def admin_dashboard(
     juridicos = []
     if current.papel == "admin":
         res_j = await db.execute(
-            select(AdminUsuario).where(AdminUsuario.papel == "juridico").order_by(AdminUsuario.nome)
+            select(AdminUsuario)
+            .where(AdminUsuario.papel.in_(("admin", "juridico")))
+            .order_by(AdminUsuario.nome)
         )
         juridicos = res_j.scalars().all()
 
@@ -1525,7 +1630,9 @@ async def admin_detalhe(
     juridicos = []
     if current.papel == "admin":
         res_j = await db.execute(
-            select(AdminUsuario).where(AdminUsuario.papel == "juridico").order_by(AdminUsuario.nome)
+            select(AdminUsuario)
+            .where(AdminUsuario.papel.in_(("admin", "juridico")))
+            .order_by(AdminUsuario.nome)
         )
         juridicos = res_j.scalars().all()
 
@@ -1567,16 +1674,64 @@ async def admin_baixar_procuracao(
 async def admin_update_status(
     cadastro_id: int,
     payload: StatusUpdateIn,
-    admin_email: str = Depends(get_current_admin),
+    current=Depends(get_current_admin_obj),
     db=Depends(get_db),
 ):
     cadastro = await db.get(Cadastro, cadastro_id)
     if not cadastro:
         raise HTTPException(status_code=404)
-    cadastro.status = payload.status
-    cadastro.updated_at = datetime.now()
+    status_anterior = cadastro.status
+    if status_anterior != payload.status:
+        cadastro.status = payload.status
+        cadastro.updated_at = datetime.now()
+        registrar_historico(
+            db,
+            cadastro_id=cadastro.id,
+            tipo="status_alterado",
+            descricao=(
+                f"Status alterado de \"{STATUS_LABELS.get(status_anterior, status_anterior)}\""
+                f" para \"{STATUS_LABELS.get(payload.status, payload.status)}\""
+            ),
+            ator=current,
+            valor_anterior=status_anterior,
+            valor_novo=payload.status,
+        )
     await db.commit()
     return {"ok": True, "status": payload.status}
+
+
+@app.get("/admin/cadastro/{cadastro_id}/historico")
+async def admin_get_historico(
+    cadastro_id: int,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    cadastro = await db.get(Cadastro, cadastro_id)
+    if not cadastro:
+        raise HTTPException(status_code=404, detail="Cadastro não encontrado")
+
+    result = await db.execute(
+        select(HistoricoCadastro)
+        .where(HistoricoCadastro.cadastro_id == cadastro_id)
+        .order_by(HistoricoCadastro.criado_em.desc())
+    )
+    eventos = result.scalars().all()
+    return {
+        "eventos": [
+            {
+                "id": e.id,
+                "tipo": e.tipo,
+                "descricao": e.descricao,
+                "ator_nome": e.ator_nome,
+                "ator_email": e.ator_email,
+                "valor_anterior": e.valor_anterior,
+                "valor_novo": e.valor_novo,
+                "criado_em": e.criado_em.isoformat(),
+                "criado_em_fmt": e.criado_em.strftime("%d/%m/%Y às %H:%M"),
+            }
+            for e in eventos
+        ]
+    }
 
 
 @app.post("/admin/cadastro/{cadastro_id}/nota")
@@ -1607,12 +1762,14 @@ async def admin_update_atendente(
         raise HTTPException(status_code=404, detail="Cadastro não encontrado")
 
     novo_id = payload.atendente_id
+    atendente_anterior_id = cadastro.atendente_id
+    atendente_anterior_nome = cadastro.atendente.nome if cadastro.atendente else None
 
     if current.papel == "admin":
         if novo_id is not None:
             alvo = await db.get(AdminUsuario, novo_id)
-            if not alvo or alvo.papel != "juridico":
-                raise HTTPException(status_code=400, detail="Atendente inválido ou não é jurídico")
+            if not alvo or alvo.papel not in ("admin", "juridico"):
+                raise HTTPException(status_code=400, detail="Atendente inválido")
         cadastro.atendente_id = novo_id
     elif current.papel == "juridico":
         if novo_id is None:
@@ -1629,6 +1786,38 @@ async def admin_update_atendente(
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     cadastro.updated_at = datetime.now()
+
+    if atendente_anterior_id != cadastro.atendente_id:
+        if cadastro.atendente_id is None:
+            registrar_historico(
+                db,
+                cadastro_id=cadastro.id,
+                tipo="atendente_removido",
+                descricao=f"Atendente removido (antes: {atendente_anterior_nome or '—'})",
+                ator=current,
+                valor_anterior=atendente_anterior_nome,
+                valor_novo=None,
+            )
+        else:
+            novo_nome = None
+            if cadastro.atendente_id == current.id:
+                novo_nome = current.nome
+            else:
+                alvo = await db.get(AdminUsuario, cadastro.atendente_id)
+                novo_nome = alvo.nome if alvo else None
+            registrar_historico(
+                db,
+                cadastro_id=cadastro.id,
+                tipo="atendente_atribuido",
+                descricao=(
+                    f"Atendente atribuído: {novo_nome or '—'}"
+                    + (f" (antes: {atendente_anterior_nome})" if atendente_anterior_nome else "")
+                ),
+                ator=current,
+                valor_anterior=atendente_anterior_nome,
+                valor_novo=novo_nome,
+            )
+
     await db.commit()
     await db.refresh(cadastro)
     nome = cadastro.atendente.nome if cadastro.atendente else None
@@ -1674,6 +1863,13 @@ async def admin_update_dados(
     cadastro.cidade = payload.cidade
     cadastro.uf = payload.uf
     cadastro.updated_at = datetime.now()
+    registrar_historico(
+        db,
+        cadastro_id=cadastro.id,
+        tipo="dados_editados",
+        descricao="Dados do cadastro editados",
+        ator=current,
+    )
     await db.commit()
     return {"ok": True}
 

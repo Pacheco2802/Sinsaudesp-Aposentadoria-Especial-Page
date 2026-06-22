@@ -193,6 +193,46 @@
     .link-cadastro:hover { text-decoration: underline; }
     #dia-loading { color: #aaa; font-size: 0.85rem; padding: 12px 0; }
     #dia-vazio { color: #aaa; font-size: 0.88rem; padding: 12px 0; }
+
+    /* Selects inline na agenda */
+    .inline-select {
+      border: 1px solid var(--cinza-borda);
+      border-radius: 6px;
+      padding: 4px 6px;
+      font-size: 0.78rem;
+      background: #fff;
+      cursor: pointer;
+      max-width: 160px;
+    }
+    .inline-select:focus { outline: 2px solid var(--verde-principal); }
+    .inline-select.status-novo { background: #fffde7; border-color: #fdd835; color: #6f6300; }
+    .inline-select.status-em_andamento { background: #e3f2fd; border-color: #64b5f6; color: #0d47a1; }
+    .inline-select.status-concluido { background: #e8f5e9; border-color: #81c784; color: #1b5e20; }
+    .btn-puxar {
+      background: var(--verde-escuro);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-puxar:hover { opacity: 0.9; }
+    .btn-liberar-mini {
+      background: transparent;
+      color: #c62828;
+      border: 1px solid #ef9a9a;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-left: 6px;
+    }
+    .btn-liberar-mini:hover { background: #ffebee; }
+    .row-feedback { font-size: 0.7rem; color: var(--verde-principal); margin-left: 6px; }
+    .row-feedback.err { color: #c62828; }
   </style>
 </head>
 <body>
@@ -386,10 +426,11 @@ const CURRENT_USER_ID = {{ current_user_id }};
   const STATUS_LABEL = {
     novo: 'Novo',
     em_andamento: 'Em andamento',
-    documentacao_pendente: 'Doc. pendente',
     concluido: 'Concluído',
-    cancelado: 'Cancelado',
   };
+  const STATUS_OPCOES = ['novo', 'em_andamento', 'concluido'];
+  let JURIDICOS = [];
+  let CURRENT_PAPEL = '';
 
   function moverDia(delta) {
     const d = new Date(inputData.value + 'T12:00:00');
@@ -427,6 +468,9 @@ const CURRENT_USER_ID = {{ current_user_id }};
 
     const d = await resp.json();
     elLoading.style.display = 'none';
+
+    JURIDICOS = d.juridicos || [];
+    CURRENT_PAPEL = d.current_papel || '';
 
     const filtrarMeus = chkMeus.checked;
     const todoSlots = [...d.horarios, ...d.fora_do_slot];
@@ -472,26 +516,133 @@ const CURRENT_USER_ID = {{ current_user_id }};
           : c.modalidade === 'presencial'
             ? '<span class="badge-presencial">Presencial</span>'
             : c.modalidade;
-        const statusLabel = STATUS_LABEL[c.status] || c.status;
-        const statusClass = c.etapa2_concluida ? ' badge-concluido' : '';
-        const atendenteCell = c.atendente_nome
-          ? '<td style="font-size:0.8rem;color:#555;">' + escHtml(c.atendente_nome) + '</td>'
-          : '<td style="color:#ccc;font-size:0.8rem;">—</td>';
+
         tr.innerHTML =
           '<td><strong>' + slot.horario + '</strong></td>' +
           '<td>' + escHtml(c.nome) + '</td>' +
           '<td style="white-space:nowrap;">' + escHtml(c.cpf) + '</td>' +
           '<td>' + escHtml(c.telefone) + '</td>' +
           '<td>' + modalidadeBadge + '</td>' +
-          '<td><span class="badge-status' + statusClass + '">' + escHtml(statusLabel) + '</span></td>' +
-          atendenteCell +
-          '<td><a href="/admin/cadastro/' + c.id + '" class="link-cadastro" target="_blank">Ver</a></td>';
+          '<td>' + renderStatusSelect(c) + '</td>' +
+          '<td>' + renderAtendenteCell(c) + '</td>' +
+          '<td>'
+            + '<a href="/admin/cadastro/' + c.id + '" class="link-cadastro" target="_blank">Ver</a>'
+            + '<span class="row-feedback" data-feedback="' + c.id + '" style="display:none;"></span>'
+          + '</td>';
       }
       elTbody.appendChild(tr);
     });
 
     elTabelaWrap.style.display = 'block';
   }
+
+  function renderStatusSelect(c) {
+    let html = '<select class="inline-select status-' + c.status + '" data-cad-id="' + c.id + '" data-role="status">';
+    STATUS_OPCOES.forEach(s => {
+      const sel = s === c.status ? ' selected' : '';
+      html += '<option value="' + s + '"' + sel + '>' + escHtml(STATUS_LABEL[s] || s) + '</option>';
+    });
+    html += '</select>';
+    if (c.etapa2_concluida) {
+      html += ' <span title="Etapa 2 concluída" style="color:#2e7d32;font-size:0.85rem;">✓</span>';
+    }
+    return html;
+  }
+
+  function renderAtendenteCell(c) {
+    if (CURRENT_PAPEL === 'admin') {
+      let html = '<select class="inline-select" data-cad-id="' + c.id + '" data-role="atendente">';
+      html += '<option value="">— Sem atribuição —</option>';
+      JURIDICOS.forEach(j => {
+        const sel = j.id === c.atendente_id ? ' selected' : '';
+        const suf = j.papel === 'admin' ? ' (admin)' : '';
+        html += '<option value="' + j.id + '"' + sel + '>' + escHtml(j.nome) + escHtml(suf) + '</option>';
+      });
+      html += '</select>';
+      return html;
+    }
+    // jurídico
+    if (c.atendente_id === CURRENT_USER_ID) {
+      return '<span style="font-size:0.8rem;color:var(--verde-principal);font-weight:600;">✓ Meu</span>'
+           + '<button class="btn-liberar-mini" data-cad-id="' + c.id + '" data-role="liberar">Liberar</button>';
+    }
+    if (c.atendente_id) {
+      return '<span style="font-size:0.78rem;color:#888;">' + escHtml(c.atendente_nome || '—') + '</span>';
+    }
+    return '<button class="btn-puxar" data-cad-id="' + c.id + '" data-role="puxar">Puxar p/ mim</button>';
+  }
+
+  function showFeedback(cadId, msg, isError) {
+    const span = elTbody.querySelector('[data-feedback="' + cadId + '"]');
+    if (!span) return;
+    span.textContent = msg;
+    span.className = 'row-feedback' + (isError ? ' err' : '');
+    span.style.display = 'inline';
+    setTimeout(() => { span.style.display = 'none'; }, 2500);
+  }
+
+  elTbody.addEventListener('change', async (ev) => {
+    const t = ev.target;
+    if (!t.matches('select.inline-select')) return;
+    const cadId = t.dataset.cadId;
+    const role = t.dataset.role;
+    if (role === 'status') {
+      const novo = t.value;
+      t.className = 'inline-select status-' + novo;
+      try {
+        const r = await fetch('/admin/cadastro/' + cadId + '/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: novo }),
+        });
+        if (!r.ok) throw new Error('Erro');
+        showFeedback(cadId, '✓ Status salvo', false);
+      } catch (e) {
+        showFeedback(cadId, '✕ Erro ao salvar', true);
+      }
+    } else if (role === 'atendente') {
+      const novo = t.value ? parseInt(t.value, 10) : null;
+      try {
+        const r = await fetch('/admin/cadastro/' + cadId + '/atendente', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ atendente_id: novo }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || 'Erro');
+        }
+        showFeedback(cadId, '✓ Atendente atualizado', false);
+      } catch (e) {
+        showFeedback(cadId, '✕ ' + e.message, true);
+        carregar();
+      }
+    }
+  });
+
+  elTbody.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button[data-role]');
+    if (!btn) return;
+    const cadId = btn.dataset.cadId;
+    const role = btn.dataset.role;
+    if (role !== 'puxar' && role !== 'liberar') return;
+    const novo = role === 'puxar' ? CURRENT_USER_ID : null;
+    try {
+      const r = await fetch('/admin/cadastro/' + cadId + '/atendente', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atendente_id: novo }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erro');
+      }
+      showFeedback(cadId, role === 'puxar' ? '✓ Atribuído a você' : '✓ Liberado', false);
+      carregar();
+    } catch (e) {
+      showFeedback(cadId, '✕ ' + e.message, true);
+    }
+  });
 
   function formatarData(iso) {
     const [y, m, d] = iso.split('-');

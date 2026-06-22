@@ -159,3 +159,22 @@ class BloqueioAgenda(Base):
     motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     criado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     criado_por: Mapped[str] = mapped_column(String(255), nullable=False, server_default="sistema")
+
+
+class HistoricoCadastro(Base):
+    """Auditoria de ações feitas sobre um cadastro (status, atendente, etapa 2, edições)."""
+    __tablename__ = "historico_cadastro"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cadastro_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("cadastros.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # status_alterado | atendente_atribuido | atendente_removido | etapa2_liberada
+    # | etapa2_concluida | dados_editados | cadastro_criado
+    tipo: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    ator_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    ator_nome: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    descricao: Mapped[str] = mapped_column(Text, nullable=False)
+    valor_anterior: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    valor_novo: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())

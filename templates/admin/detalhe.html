@@ -18,6 +18,39 @@
     }
     #form-editar-dados .field-group input:focus,
     #form-editar-dados .field-group select:focus { outline: 2px solid var(--verde-principal); }
+
+    /* Timeline de histórico */
+    .timeline { list-style: none; padding: 0; margin: 0; max-height: 480px; overflow-y: auto; }
+    .timeline li {
+      position: relative;
+      padding: 10px 12px 12px 26px;
+      border-left: 2px solid #e0e0e0;
+      margin-left: 6px;
+    }
+    .timeline li:last-child { border-left-color: transparent; }
+    .timeline li::before {
+      content: '';
+      position: absolute;
+      left: -7px;
+      top: 14px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #bdbdbd;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px #bdbdbd;
+    }
+    .timeline li.tipo-status_alterado::before { background: #1976d2; box-shadow: 0 0 0 1px #1976d2; }
+    .timeline li.tipo-atendente_atribuido::before { background: #43a047; box-shadow: 0 0 0 1px #43a047; }
+    .timeline li.tipo-atendente_removido::before { background: #ef6c00; box-shadow: 0 0 0 1px #ef6c00; }
+    .timeline li.tipo-etapa2_liberada::before { background: #f9a825; box-shadow: 0 0 0 1px #f9a825; }
+    .timeline li.tipo-etapa2_concluida::before { background: #2e7d32; box-shadow: 0 0 0 1px #2e7d32; }
+    .timeline li.tipo-cadastro_criado::before { background: #6a1b9a; box-shadow: 0 0 0 1px #6a1b9a; }
+    .timeline li.tipo-dados_editados::before { background: #455a64; box-shadow: 0 0 0 1px #455a64; }
+    .timeline .ev-desc { font-size: 0.88rem; color: #222; margin: 0; }
+    .timeline .ev-meta { font-size: 0.75rem; color: #888; margin-top: 3px; }
+    .timeline .ev-ator { font-weight: 600; color: #555; }
+    #historico-loading, #historico-vazio { color: #aaa; font-size: 0.85rem; padding: 8px 0; }
   </style>
 </head>
 <body>
@@ -343,7 +376,7 @@
             <select id="select-atendente" onchange="updateAtendente({{ cadastro.id }}, this.value || null)" style="padding:8px 10px;border:1px solid var(--cinza-borda);border-radius:6px;font-size:0.9rem;width:100%;max-width:280px;">
               <option value="">— Sem atribuição —</option>
               {% for j in juridicos %}
-              <option value="{{ j.id }}" {% if cadastro.atendente_id == j.id %}selected{% endif %}>{{ j.nome }}</option>
+              <option value="{{ j.id }}" {% if cadastro.atendente_id == j.id %}selected{% endif %}>{{ j.nome }}{% if j.papel == 'admin' %} (admin){% endif %}</option>
               {% endfor %}
             </select>
           </div>
@@ -451,6 +484,17 @@
 
     </div>
 
+    <!-- Histórico -->
+    <div class="detail-card" style="margin-top: 20px;">
+      <h3>📜 Histórico do cadastro</h3>
+      <p style="font-size:0.82rem;color:var(--cinza-texto);margin:0 0 12px;">
+        Todas as alterações registradas: status, atribuições, etapa 2 e edições.
+      </p>
+      <div id="historico-loading">Carregando…</div>
+      <div id="historico-vazio" style="display:none;">Nenhum evento registrado ainda.</div>
+      <ul id="historico-lista" class="timeline" style="display:none;"></ul>
+    </div>
+
     <!-- Documentos -->
     <div class="detail-card" style="margin-top: 20px;">
       <h3>📎 Documentos enviados</h3>
@@ -544,6 +588,46 @@ async function salvarDados(cadastroId) {
 
   window.location.reload();
 }
+
+(async function carregarHistorico() {
+  const elLoading = document.getElementById('historico-loading');
+  const elVazio = document.getElementById('historico-vazio');
+  const elLista = document.getElementById('historico-lista');
+  const cadId = {{ cadastro.id }};
+
+  function escHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  try {
+    const resp = await fetch('/admin/cadastro/' + cadId + '/historico');
+    if (!resp.ok) throw new Error('Erro ' + resp.status);
+    const data = await resp.json();
+    elLoading.style.display = 'none';
+
+    const eventos = data.eventos || [];
+    if (eventos.length === 0) {
+      elVazio.style.display = 'block';
+      return;
+    }
+
+    elLista.innerHTML = eventos.map(ev => {
+      const atorTxt = ev.ator_nome
+        ? '<span class="ev-ator">' + escHtml(ev.ator_nome) + '</span>'
+        : '<span class="ev-ator">Cliente</span>';
+      return ''
+        + '<li class="tipo-' + escHtml(ev.tipo) + '">'
+        +   '<p class="ev-desc">' + escHtml(ev.descricao) + '</p>'
+        +   '<p class="ev-meta">' + atorTxt + ' • ' + escHtml(ev.criado_em_fmt) + '</p>'
+        + '</li>';
+    }).join('');
+    elLista.style.display = 'block';
+  } catch (e) {
+    elLoading.textContent = 'Erro ao carregar histórico.';
+  }
+})();
 </script>
 </body>
 </html>
