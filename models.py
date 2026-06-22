@@ -161,6 +161,23 @@ class BloqueioAgenda(Base):
     criado_por: Mapped[str] = mapped_column(String(255), nullable=False, server_default="sistema")
 
 
+class NotaCadastro(Base):
+    """Notas internas em formato de feed (várias por cadastro, com autor e data)."""
+    __tablename__ = "notas_cadastro"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cadastro_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("cadastros.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    autor_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("admin_usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    autor_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    autor_nome: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    texto: Mapped[str] = mapped_column(Text, nullable=False)
+    criado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+
+
 class HistoricoCadastro(Base):
     """Auditoria de ações feitas sobre um cadastro (status, atendente, etapa 2, edições)."""
     __tablename__ = "historico_cadastro"

@@ -47,6 +47,7 @@ from models import (
     EventoSessao,
     HistoricoCadastro,
     Lead,
+    NotaCadastro,
 )
 from pdf_generator import generate_procuration_pdf
 from schemas import (
@@ -277,6 +278,17 @@ async def lifespan(app: FastAPI):
             )""",
             "CREATE INDEX IF NOT EXISTS ix_historico_cadastro_id ON historico_cadastro(cadastro_id)",
             "CREATE INDEX IF NOT EXISTS ix_historico_tipo ON historico_cadastro(tipo)",
+            # Notas internas em feed (várias por cadastro)
+            """CREATE TABLE IF NOT EXISTS notas_cadastro (
+                id SERIAL PRIMARY KEY,
+                cadastro_id INTEGER NOT NULL REFERENCES cadastros(id) ON DELETE CASCADE,
+                autor_id INTEGER REFERENCES admin_usuarios(id) ON DELETE SET NULL,
+                autor_email VARCHAR(255),
+                autor_nome VARCHAR(255),
+                texto TEXT NOT NULL,
+                criado_em TIMESTAMP NOT NULL DEFAULT now()
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_notas_cadastro_id ON notas_cadastro(cadastro_id)",
         ):
             await conn.execute(text(ddl))
     logger.info("Database tables created/verified")
@@ -1734,20 +1746,104 @@ async def admin_get_historico(
     }
 
 
-@app.post("/admin/cadastro/{cadastro_id}/nota")
-async def admin_update_nota(
+@app.get("/admin/cadastro/{cadastro_id}/notas")
+async def admin_list_notas(
     cadastro_id: int,
-    payload: NotaUpdateIn,
-    admin_email: str = Depends(get_current_admin),
+    current=Depends(get_current_admin_obj),
     db=Depends(get_db),
 ):
     cadastro = await db.get(Cadastro, cadastro_id)
     if not cadastro:
-        raise HTTPException(status_code=404)
-    cadastro.nota_interna = payload.nota
+        raise HTTPException(status_code=404, detail="Cadastro não encontrado")
+    result = await db.execute(
+        select(NotaCadastro)
+        .where(NotaCadastro.cadastro_id == cadastro_id)
+        .order_by(NotaCadastro.criado_em.desc())
+    )
+    notas = result.scalars().all()
+    return {
+        "notas": [
+            {
+                "id": n.id,
+                "texto": n.texto,
+                "autor_id": n.autor_id,
+                "autor_nome": n.autor_nome,
+                "autor_email": n.autor_email,
+                "criado_em": n.criado_em.isoformat(),
+                "criado_em_fmt": n.criado_em.strftime("%d/%m/%Y às %H:%M"),
+                "pode_excluir": current.papel == "admin" or n.autor_id == current.id,
+            }
+            for n in notas
+        ]
+    }
+
+
+@app.post("/admin/cadastro/{cadastro_id}/notas")
+async def admin_add_nota(
+    cadastro_id: int,
+    payload: NotaUpdateIn,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    cadastro = await db.get(Cadastro, cadastro_id)
+    if not cadastro:
+        raise HTTPException(status_code=404, detail="Cadastro não encontrado")
+    texto = payload.nota.strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="A nota não pode ficar em branco")
+
+    nota = NotaCadastro(
+        cadastro_id=cadastro_id,
+        autor_id=current.id,
+        autor_email=current.email,
+        autor_nome=current.nome,
+        texto=texto,
+    )
+    db.add(nota)
     cadastro.updated_at = datetime.now()
     await db.commit()
+    await db.refresh(nota)
+    return {
+        "ok": True,
+        "nota": {
+            "id": nota.id,
+            "texto": nota.texto,
+            "autor_id": nota.autor_id,
+            "autor_nome": nota.autor_nome,
+            "autor_email": nota.autor_email,
+            "criado_em": nota.criado_em.isoformat(),
+            "criado_em_fmt": nota.criado_em.strftime("%d/%m/%Y às %H:%M"),
+            "pode_excluir": True,
+        },
+    }
+
+
+@app.delete("/admin/cadastro/{cadastro_id}/notas/{nota_id}")
+async def admin_delete_nota(
+    cadastro_id: int,
+    nota_id: int,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    nota = await db.get(NotaCadastro, nota_id)
+    if not nota or nota.cadastro_id != cadastro_id:
+        raise HTTPException(status_code=404, detail="Nota não encontrada")
+    if current.papel != "admin" and nota.autor_id != current.id:
+        raise HTTPException(status_code=403, detail="Você só pode excluir suas próprias notas")
+    await db.delete(nota)
+    await db.commit()
     return {"ok": True}
+
+
+# Endpoint legado mantido para compatibilidade — agora cria uma nota nova em vez de sobrescrever.
+@app.post("/admin/cadastro/{cadastro_id}/nota")
+async def admin_update_nota_legacy(
+    cadastro_id: int,
+    payload: NotaUpdateIn,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    return await admin_add_nota(cadastro_id, payload, current, db)
 
 
 @app.put("/admin/cadastro/{cadastro_id}/atendente")

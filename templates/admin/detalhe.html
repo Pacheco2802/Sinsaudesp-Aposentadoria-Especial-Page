@@ -51,6 +51,41 @@
     .timeline .ev-meta { font-size: 0.75rem; color: #888; margin-top: 3px; }
     .timeline .ev-ator { font-weight: 600; color: #555; }
     #historico-loading, #historico-vazio { color: #aaa; font-size: 0.85rem; padding: 8px 0; }
+
+    /* Feed de notas */
+    .nota-item {
+      border: 1px solid var(--cinza-borda);
+      border-left: 3px solid var(--verde-principal);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: #fff;
+    }
+    .nota-item .nota-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.72rem;
+      color: #888;
+      margin-bottom: 6px;
+    }
+    .nota-item .nota-autor { font-weight: 600; color: #555; }
+    .nota-item .nota-texto {
+      font-size: 0.88rem;
+      color: #222;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .btn-excluir-nota {
+      background: transparent;
+      color: #c62828;
+      border: none;
+      cursor: pointer;
+      font-size: 0.72rem;
+      padding: 2px 6px;
+      font-weight: 600;
+    }
+    .btn-excluir-nota:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -304,15 +339,34 @@
         </div>
       </div>
 
-      <!-- Nota interna -->
+      <!-- Notas internas (feed) -->
       <div class="detail-card">
-        <h3>📝 Nota interna</h3>
+        <h3>📝 Notas internas</h3>
+        <p style="font-size:0.8rem;color:var(--cinza-texto);margin:0 0 10px;">
+          Cada nota fica registrada com autor e data. Adicione quantas precisar.
+        </p>
         <div class="field-group">
-          <textarea id="nota-input" class="nota-input" placeholder="Adicione observações internas sobre este caso…">{{ cadastro.nota_interna or '' }}</textarea>
+          <textarea id="nota-input" class="nota-input" placeholder="Escreva uma nova nota e clique em Adicionar…"></textarea>
         </div>
-        <button type="button" class="btn-secondary" onclick="saveNota({{ cadastro.id }})">
-          Salvar nota
-        </button>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+          <button type="button" class="btn-secondary" onclick="adicionarNota({{ cadastro.id }})">
+            ➕ Adicionar nota
+          </button>
+          <span id="nota-feedback" style="font-size:0.8rem;display:none;"></span>
+        </div>
+
+        {% if cadastro.nota_interna %}
+        <div style="border:1px dashed #ccc;border-radius:6px;padding:10px 12px;background:#fafafa;margin-bottom:10px;">
+          <div style="font-size:0.7rem;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;font-weight:600;">
+            Nota antiga (formato anterior)
+          </div>
+          <div style="font-size:0.88rem;color:#444;white-space:pre-wrap;">{{ cadastro.nota_interna }}</div>
+        </div>
+        {% endif %}
+
+        <div id="notas-loading" style="color:#aaa;font-size:0.82rem;">Carregando notas…</div>
+        <div id="notas-vazio" style="color:#aaa;font-size:0.85rem;display:none;">Nenhuma nota adicionada ainda.</div>
+        <ul id="notas-lista" style="list-style:none;padding:0;margin:0;display:none;"></ul>
       </div>
 
       <!-- Endereço -->
@@ -588,6 +642,101 @@ async function salvarDados(cadastroId) {
 
   window.location.reload();
 }
+
+function escHtmlNotas(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderNota(n) {
+  const li = document.createElement('li');
+  li.className = 'nota-item';
+  li.dataset.notaId = n.id;
+  const excluirBtn = n.pode_excluir
+    ? '<button type="button" class="btn-excluir-nota" onclick="excluirNota(' + {{ cadastro.id }} + ', ' + n.id + ')">Excluir</button>'
+    : '';
+  li.innerHTML =
+    '<div class="nota-meta">' +
+      '<span><span class="nota-autor">' + escHtmlNotas(n.autor_nome || n.autor_email || '—') + '</span> • ' + escHtmlNotas(n.criado_em_fmt) + '</span>' +
+      excluirBtn +
+    '</div>' +
+    '<div class="nota-texto">' + escHtmlNotas(n.texto) + '</div>';
+  return li;
+}
+
+async function carregarNotas() {
+  const elLoading = document.getElementById('notas-loading');
+  const elVazio = document.getElementById('notas-vazio');
+  const elLista = document.getElementById('notas-lista');
+  try {
+    const r = await fetch('/admin/cadastro/' + {{ cadastro.id }} + '/notas');
+    if (!r.ok) throw new Error('Erro ' + r.status);
+    const data = await r.json();
+    elLoading.style.display = 'none';
+    elLista.innerHTML = '';
+    if (!data.notas || data.notas.length === 0) {
+      elVazio.style.display = 'block';
+      elLista.style.display = 'none';
+      return;
+    }
+    elVazio.style.display = 'none';
+    data.notas.forEach(n => elLista.appendChild(renderNota(n)));
+    elLista.style.display = 'block';
+  } catch (e) {
+    elLoading.textContent = 'Erro ao carregar notas.';
+  }
+}
+
+async function adicionarNota(cadId) {
+  const txt = document.getElementById('nota-input');
+  const fb = document.getElementById('nota-feedback');
+  fb.style.display = 'none';
+  const texto = txt.value.trim();
+  if (!texto) {
+    fb.textContent = 'Escreva algo antes de adicionar';
+    fb.style.color = '#c62828';
+    fb.style.display = 'inline';
+    return;
+  }
+  try {
+    const r = await fetch('/admin/cadastro/' + cadId + '/notas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nota: texto }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || 'Erro ao salvar');
+    }
+    txt.value = '';
+    fb.textContent = '✓ Nota adicionada';
+    fb.style.color = 'var(--verde-principal)';
+    fb.style.display = 'inline';
+    setTimeout(() => { fb.style.display = 'none'; }, 2500);
+    carregarNotas();
+  } catch (e) {
+    fb.textContent = '✕ ' + e.message;
+    fb.style.color = '#c62828';
+    fb.style.display = 'inline';
+  }
+}
+
+async function excluirNota(cadId, notaId) {
+  if (!confirm('Excluir esta nota?')) return;
+  try {
+    const r = await fetch('/admin/cadastro/' + cadId + '/notas/' + notaId, { method: 'DELETE' });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || 'Erro ao excluir');
+    }
+    carregarNotas();
+  } catch (e) {
+    alert('Erro: ' + e.message);
+  }
+}
+
+carregarNotas();
 
 (async function carregarHistorico() {
   const elLoading = document.getElementById('historico-loading');
