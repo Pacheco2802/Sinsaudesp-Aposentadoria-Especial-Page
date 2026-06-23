@@ -38,6 +38,7 @@ from email_service import (
     send_lembrete_email,
     smtp_status,
 )
+from file_security import safe_download_name, sanitize_upload
 from models import (
     AdminUsuario,
     BloqueioAgenda,
@@ -618,6 +619,10 @@ async def api_upload(
 
     if not detect_magic(content[:8]):
         raise HTTPException(status_code=400, detail="Formato não permitido. Use PDF, JPG ou PNG.")
+
+    # Reconstrói o arquivo (CDR): remove conteúdo ativo de PDFs e re-encoda
+    # imagens. O que for armazenado é o conteúdo "limpo", não o original.
+    content = sanitize_upload(content)
 
     ext = Path(file.filename or "file").suffix.lower()
     if ext not in (".pdf", ".jpg", ".jpeg", ".png"):
@@ -2103,10 +2108,14 @@ async def admin_download_documento(
             content = await asyncio.to_thread(obj["Body"].read)
         except ClientError:
             raise HTTPException(status_code=404, detail="Arquivo não encontrado no storage")
+        download_name = safe_download_name(doc.nome_arquivo, doc.caminho_arquivo)
         return Response(
             content=content,
             media_type="application/octet-stream",
-            headers={"Content-Disposition": f'attachment; filename="{doc.nome_arquivo}"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="{download_name}"',
+                "X-Content-Type-Options": "nosniff",
+            },
         )
 
     file_path = safe_file_path(DOCS_DIR, str(doc.cadastro_id), doc.caminho_arquivo)
@@ -2114,6 +2123,7 @@ async def admin_download_documento(
         raise HTTPException(status_code=404, detail="Arquivo não encontrado no storage")
     return FileResponse(
         path=str(file_path),
-        filename=doc.nome_arquivo,
+        filename=safe_download_name(doc.nome_arquivo, doc.caminho_arquivo),
         media_type="application/octet-stream",
+        headers={"X-Content-Type-Options": "nosniff"},
     )
