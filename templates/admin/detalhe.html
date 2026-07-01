@@ -398,7 +398,7 @@
         {% if cadastro.agendamento %}
         <div class="info-row">
           <span class="info-label">Data e horário</span>
-          <span class="info-value"><strong>{{ cadastro.agendamento.strftime('%d/%m/%Y às %H:%M') }}</strong></span>
+          <span class="info-value"><strong id="reag-atual">{{ cadastro.agendamento.strftime('%d/%m/%Y às %H:%M') }}</strong></span>
         </div>
         <div class="info-row">
           <span class="info-label">Modalidade</span>
@@ -407,8 +407,56 @@
           </span>
         </div>
         {% else %}
-        <p style="color: var(--cinza-texto); font-size: 0.9rem;">Sem agendamento registrado.</p>
+        <p id="reag-atual" style="color: var(--cinza-texto); font-size: 0.9rem;">Sem agendamento registrado.</p>
         {% endif %}
+
+        <button type="button" class="btn-outline" id="btn-toggle-reagendar"
+                style="font-size:0.8rem;padding:6px 14px;margin-top:8px;"
+                onclick="document.getElementById('reag-box').style.display='block';this.style.display='none';">
+          📅 {{ 'Reagendar' if cadastro.agendamento else 'Agendar' }}
+        </button>
+        <div id="reag-box" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--cinza-borda);border-radius:8px;background:#fafafa;max-width:320px;">
+          <div style="margin-bottom:8px;">
+            <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:3px;">Nova data</label>
+            <input type="date" id="reag-data" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;">
+          </div>
+          <div style="margin-bottom:8px;">
+            <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:3px;">Novo horário</label>
+            <input type="time" id="reag-hora" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;">
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;margin-bottom:10px;cursor:pointer;">
+            <input type="checkbox" id="reag-notificar" checked> Avisar o cliente por e-mail
+          </label>
+          <div id="reag-erro" style="display:none;color:#c62828;font-size:0.8rem;margin-bottom:8px;"></div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="btn-secondary" id="reag-confirmar" style="font-size:0.8rem;padding:6px 14px;">Confirmar</button>
+            <button type="button" class="btn-outline" style="font-size:0.8rem;padding:6px 14px;"
+                    onclick="document.getElementById('reag-box').style.display='none';document.getElementById('btn-toggle-reagendar').style.display='inline-block';">Cancelar</button>
+          </div>
+        </div>
+        <script>
+        document.getElementById('reag-confirmar').addEventListener('click', async function () {
+          const data = document.getElementById('reag-data').value;
+          const hora = document.getElementById('reag-hora').value;
+          const notificar = document.getElementById('reag-notificar').checked;
+          const erro = document.getElementById('reag-erro');
+          if (!data || !hora) { erro.textContent = 'Preencha data e horário.'; erro.style.display = 'block'; return; }
+          try {
+            const r = await fetch('/admin/cadastro/{{ cadastro.id }}/reagendar', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ data: data, hora: hora, notificar: notificar }),
+            });
+            if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || 'Erro'); }
+            const d = await r.json();
+            document.getElementById('reag-atual').innerHTML = '<strong>' + d.agendamento + '</strong>'
+              + (d.email_enviado ? ' <span style="color:#2e7d32;font-size:0.8rem;">✓ cliente avisado</span>' : '');
+            document.getElementById('reag-box').style.display = 'none';
+          } catch (e) {
+            erro.textContent = e.message; erro.style.display = 'block';
+          }
+        });
+        </script>
         <div class="info-row">
           <span class="info-label">Análise de estabilidade</span>
           <span class="info-value">

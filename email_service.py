@@ -109,6 +109,43 @@ async def send_confirmation_email(
         logger.error("Failed to send confirmation email to %s: %s", to_email, e)
 
 
+async def send_reagendamento_email(
+    to_email: str, nome: str, agendamento: str, modalidade: str = "",
+) -> bool:
+    subject = "Seu atendimento foi remarcado — SinSaúdeSP"
+    modalidade_str = "Online (via Microsoft Teams)" if modalidade == "online" else "Presencial"
+    body = f"""
+    <html><body style="font-family: Arial, sans-serif; color: #333;">
+    <div style="max-width:600px;margin:0 auto;padding:20px;">
+      <h2 style="color:#2E7D32;">Seu atendimento foi remarcado</h2>
+      <p>Olá, <strong>{nome}</strong>.</p>
+      <p>O seu atendimento de <strong>Aposentadoria Especial</strong> foi remarcado para uma nova data e horário:</p>
+      <p style="font-size:1.1rem;"><strong>Nova data:</strong> {agendamento}<br>
+      <strong>Modalidade:</strong> {modalidade_str}</p>
+      <p>Se este novo horário não for adequado, basta responder este e-mail ou falar com o sindicato.</p>
+      <hr style="border:1px solid #eee;margin:20px 0;">
+      <p style="font-size:12px;color:#666;">
+        SinSaúdeSP — Sindicato dos Trabalhadores da Saúde de São Paulo
+      </p>
+    </div>
+    </body></html>
+    """
+    text = (
+        f"Olá, {nome}.\n\n"
+        f"O seu atendimento de Aposentadoria Especial foi remarcado.\n\n"
+        f"Nova data: {agendamento}\n"
+        f"Modalidade: {modalidade_str}\n\n"
+        f"Se este novo horário não for adequado, responda este e-mail ou fale com o sindicato.\n\n"
+        f"SinSaúdeSP — Sindicato dos Trabalhadores da Saúde de São Paulo"
+    )
+    try:
+        await _send(to_email, subject, body, text)
+        return True
+    except Exception as e:
+        logger.error("Failed to send reschedule email to %s: %s", to_email, e)
+        return False
+
+
 async def send_admin_notification(
     nome: str, cpf: str, hospital: str, cargo: str, filiado: bool, cadastro_id: int,
     modalidade: str = "", agendamento: str = "",

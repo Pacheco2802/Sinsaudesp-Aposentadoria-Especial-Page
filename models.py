@@ -2,7 +2,7 @@ import uuid as _uuid
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -159,6 +159,26 @@ class BloqueioAgenda(Base):
     motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     criado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     criado_por: Mapped[str] = mapped_column(String(255), nullable=False, server_default="sistema")
+
+
+class AgendaSlotOverride(Base):
+    """Ajustes finos de horário por dia, sobrepostos à grade padrão.
+
+    tipo="extra"    → adiciona um horário que não existe na grade (encaixe).
+    tipo="removido" → desabilita um horário da grade naquele dia específico.
+    """
+    __tablename__ = "agenda_slot_overrides"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    data: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    hora: Mapped[str] = mapped_column(String(5), nullable=False)  # "HH:MM"
+    tipo: Mapped[str] = mapped_column(String(10), nullable=False)  # "extra" | "removido"
+    criado_em: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    criado_por: Mapped[str] = mapped_column(String(255), nullable=False, server_default="sistema")
+
+    __table_args__ = (
+        UniqueConstraint("data", "hora", name="uq_slot_override_data_hora"),
+    )
 
 
 class NotaCadastro(Base):

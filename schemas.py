@@ -222,6 +222,17 @@ class StatusUpdateIn(BaseModel):
         return v
 
 
+class ReagendarIn(BaseModel):
+    data: str  # "YYYY-MM-DD"
+    hora: str  # "HH:MM"
+    notificar: bool = True
+
+
+class SlotOverrideIn(BaseModel):
+    data: str  # "YYYY-MM-DD"
+    hora: str  # "HH:MM"
+
+
 class NotaUpdateIn(BaseModel):
     nota: str
 
@@ -235,6 +246,42 @@ class NotaUpdateIn(BaseModel):
 
 class AtendenteUpdateIn(BaseModel):
     atendente_id: Optional[int] = None
+
+
+class AgendamentoUpdateIn(BaseModel):
+    agendamento_data: str
+    agendamento_hora: str
+    modalidade_atendimento: Optional[str] = None
+
+    @field_validator("agendamento_data")
+    @classmethod
+    def val_data(cls, v: str) -> str:
+        v = v.strip()
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Data inválida (use YYYY-MM-DD)")
+        return v
+
+    @field_validator("agendamento_hora")
+    @classmethod
+    def val_hora(cls, v: str) -> str:
+        v = v.strip()
+        if not re.match(r"^\d{2}:\d{2}$", v):
+            raise ValueError("Hora inválida (use HH:MM)")
+        hh, mm = v.split(":")
+        if not (0 <= int(hh) <= 23 and 0 <= int(mm) <= 59):
+            raise ValueError("Hora fora do intervalo válido")
+        return v
+
+    @field_validator("modalidade_atendimento")
+    @classmethod
+    def val_modalidade(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        if v not in ("online", "presencial"):
+            raise ValueError("Modalidade inválida")
+        return v
 
 
 class CadastroUpdateIn(BaseModel):

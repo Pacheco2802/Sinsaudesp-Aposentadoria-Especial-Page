@@ -36,11 +36,13 @@ from email_service import (
     send_confirmation_email,
     send_etapa2_email,
     send_lembrete_email,
+    send_reagendamento_email,
     smtp_status,
 )
 from file_security import safe_download_name, sanitize_upload
 from models import (
     AdminUsuario,
+    AgendaSlotOverride,
     BloqueioAgenda,
     Cadastro,
     ConfigAgenda,
@@ -58,6 +60,8 @@ from schemas import (
     EventoSessaoCreate,
     LeadCreate,
     NotaUpdateIn,
+    ReagendarIn,
+    SlotOverrideIn,
     StatusUpdateIn,
 )
 from zapsign import consultar_documento as zapsign_consultar
@@ -262,6 +266,17 @@ async def lifespan(app: FastAPI):
                 criado_por VARCHAR(255) NOT NULL DEFAULT 'sistema'
             )""",
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_bloqueios_data ON bloqueios_agenda(data)",
+            # Ajustes finos de horário por dia (encaixes e remoções avulsas)
+            """CREATE TABLE IF NOT EXISTS agenda_slot_overrides (
+                id SERIAL PRIMARY KEY,
+                data DATE NOT NULL,
+                hora VARCHAR(5) NOT NULL,
+                tipo VARCHAR(10) NOT NULL,
+                criado_em TIMESTAMP NOT NULL DEFAULT now(),
+                criado_por VARCHAR(255) NOT NULL DEFAULT 'sistema'
+            )""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_slot_override_data_hora ON agenda_slot_overrides(data, hora)",
+            "CREATE INDEX IF NOT EXISTS ix_slot_override_data ON agenda_slot_overrides(data)",
             # Atribuição de atendente jurídico aos cadastros
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS atendente_id INTEGER REFERENCES admin_usuarios(id) ON DELETE SET NULL",
             "CREATE INDEX IF NOT EXISTS ix_cadastros_atendente_id ON cadastros(atendente_id)",
@@ -798,6 +813,33 @@ def _gerar_horarios(hora_inicio: str, hora_fim: str, intervalo_min: int) -> list
     return slots
 
 
+def _hhmm_valido(hora: str) -> bool:
+    try:
+        datetime.strptime(hora, "%H:%M")
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+async def _slots_do_dia(db, dia: date) -> list[str]:
+    """Horários efetivos de um dia: grade padrão + encaixes − remoções avulsas."""
+    config = await db.scalar(select(ConfigAgenda).where(ConfigAgenda.id == 1))
+    cfg_hi = config.hora_inicio if config else _AGENDA_CONFIG_DEFAULT["hora_inicio"]
+    cfg_hf = config.hora_fim if config else _AGENDA_CONFIG_DEFAULT["hora_fim"]
+    cfg_iv = config.intervalo_minutos if config else _AGENDA_CONFIG_DEFAULT["intervalo_minutos"]
+    slots = set(_gerar_horarios(cfg_hi, cfg_hf, cfg_iv))
+
+    result = await db.execute(
+        select(AgendaSlotOverride).where(AgendaSlotOverride.data == dia)
+    )
+    for ov in result.scalars().all():
+        if ov.tipo == "extra":
+            slots.add(ov.hora)
+        elif ov.tipo == "removido":
+            slots.discard(ov.hora)
+    return sorted(slots)
+
+
 def _validar_data_agenda(data_str: str) -> datetime:
     try:
         dia = datetime.strptime(data_str, "%Y-%m-%d")
@@ -830,13 +872,8 @@ async def api_agenda_horarios(request: Request, data: str, db=Depends(get_db)):
             "horarios": [],
         }
 
-    # Carrega configuração (usa padrão se ainda não configurado)
-    config = await db.scalar(select(ConfigAgenda).where(ConfigAgenda.id == 1))
-    hora_inicio = config.hora_inicio if config else _AGENDA_CONFIG_DEFAULT["hora_inicio"]
-    hora_fim = config.hora_fim if config else _AGENDA_CONFIG_DEFAULT["hora_fim"]
-    intervalo = config.intervalo_minutos if config else _AGENDA_CONFIG_DEFAULT["intervalo_minutos"]
-
-    horarios_slot = _gerar_horarios(hora_inicio, hora_fim, intervalo)
+    # Horários efetivos do dia (grade padrão + encaixes − remoções avulsas)
+    horarios_slot = await _slots_do_dia(db, dia.date())
 
     inicio = dia
     fim = dia + timedelta(days=1)
@@ -942,12 +979,7 @@ async def api_cadastro(
     if bloqueio_dia:
         raise HTTPException(status_code=400, detail="Esta data não tem atendimento disponível")
 
-    cfg = await db.scalar(select(ConfigAgenda).where(ConfigAgenda.id == 1))
-    slots_validos = _gerar_horarios(
-        cfg.hora_inicio if cfg else _AGENDA_CONFIG_DEFAULT["hora_inicio"],
-        cfg.hora_fim if cfg else _AGENDA_CONFIG_DEFAULT["hora_fim"],
-        cfg.intervalo_minutos if cfg else _AGENDA_CONFIG_DEFAULT["intervalo_minutos"],
-    )
+    slots_validos = await _slots_do_dia(db, dia.date())
     if agendamento_hora not in slots_validos:
         raise HTTPException(status_code=400, detail="Horário inválido")
     hora_h, hora_m = map(int, agendamento_hora.split(":"))
@@ -1346,6 +1378,80 @@ async def admin_remove_bloqueio(
     return RedirectResponse("/admin/agenda?msg=Bloqueio+removido", status_code=303)
 
 
+@app.post("/admin/api/agenda/slot/adicionar")
+async def admin_add_slot(
+    payload: SlotOverrideIn,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    """Habilita um horário avulso num dia (encaixe). Reativa um removido ou cria um extra."""
+    try:
+        dia = date.fromisoformat(payload.data)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida")
+    if not _hhmm_valido(payload.hora):
+        raise HTTPException(status_code=400, detail="Horário inválido")
+
+    if payload.hora in await _slots_do_dia(db, dia):
+        raise HTTPException(status_code=409, detail="Esse horário já está disponível")
+
+    existente = await db.scalar(
+        select(AgendaSlotOverride).where(
+            AgendaSlotOverride.data == dia, AgendaSlotOverride.hora == payload.hora
+        )
+    )
+    if existente and existente.tipo == "removido":
+        # Estava removido da grade → reativa apagando o override
+        await db.delete(existente)
+    elif not existente:
+        db.add(AgendaSlotOverride(
+            data=dia, hora=payload.hora, tipo="extra", criado_por=current.email,
+        ))
+    await db.commit()
+    return {"ok": True}
+
+
+@app.post("/admin/api/agenda/slot/remover")
+async def admin_remove_slot(
+    payload: SlotOverrideIn,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    """Remove um horário de um dia. Bloqueado se houver atendimento marcado nele."""
+    try:
+        dia = date.fromisoformat(payload.data)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida")
+    if not _hhmm_valido(payload.hora):
+        raise HTTPException(status_code=400, detail="Horário inválido")
+
+    hora_h, hora_m = map(int, payload.hora.split(":"))
+    slot_dt = datetime(dia.year, dia.month, dia.day, hora_h, hora_m)
+    ocupado = await db.scalar(
+        select(func.count(Cadastro.id)).where(Cadastro.agendamento == slot_dt)
+    )
+    if ocupado:
+        raise HTTPException(
+            status_code=409,
+            detail="Há um atendimento marcado nesse horário. Reagende antes de remover.",
+        )
+
+    existente = await db.scalar(
+        select(AgendaSlotOverride).where(
+            AgendaSlotOverride.data == dia, AgendaSlotOverride.hora == payload.hora
+        )
+    )
+    if existente and existente.tipo == "extra":
+        # Era um encaixe → apaga o override
+        await db.delete(existente)
+    elif not existente:
+        db.add(AgendaSlotOverride(
+            data=dia, hora=payload.hora, tipo="removido", criado_por=current.email,
+        ))
+    await db.commit()
+    return {"ok": True}
+
+
 @app.get("/admin/api/agenda/dia")
 async def admin_agenda_dia(
     data: str,
@@ -1358,10 +1464,6 @@ async def admin_agenda_dia(
         raise HTTPException(status_code=400, detail="Data inválida")
 
     bloqueio = await db.scalar(select(BloqueioAgenda).where(BloqueioAgenda.data == dia))
-    config = await db.scalar(select(ConfigAgenda).where(ConfigAgenda.id == 1))
-    cfg_hi = config.hora_inicio if config else _AGENDA_CONFIG_DEFAULT["hora_inicio"]
-    cfg_hf = config.hora_fim if config else _AGENDA_CONFIG_DEFAULT["hora_fim"]
-    cfg_iv = config.intervalo_minutos if config else _AGENDA_CONFIG_DEFAULT["intervalo_minutos"]
 
     dia_inicio = datetime(dia.year, dia.month, dia.day, 0, 0, 0)
     dia_fim = datetime(dia.year, dia.month, dia.day, 23, 59, 59)
@@ -1372,7 +1474,7 @@ async def admin_agenda_dia(
     )
     cadastros = result.scalars().all()
 
-    slots = _gerar_horarios(cfg_hi, cfg_hf, cfg_iv)
+    slots = await _slots_do_dia(db, dia)
     agendados = {c.agendamento.strftime("%H:%M"): c for c in cadastros if c.agendamento}
 
     horarios = []
@@ -1715,6 +1817,65 @@ async def admin_update_status(
         )
     await db.commit()
     return {"ok": True, "status": payload.status}
+
+
+@app.put("/admin/cadastro/{cadastro_id}/reagendar")
+async def admin_reagendar(
+    cadastro_id: int,
+    payload: ReagendarIn,
+    current=Depends(get_current_admin_obj),
+    db=Depends(get_db),
+):
+    cadastro = await db.get(Cadastro, cadastro_id)
+    if not cadastro:
+        raise HTTPException(status_code=404, detail="Cadastro não encontrado")
+
+    try:
+        dia = date.fromisoformat(payload.data)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida")
+    if not _hhmm_valido(payload.hora):
+        raise HTTPException(status_code=400, detail="Horário inválido")
+
+    hora_h, hora_m = map(int, payload.hora.split(":"))
+    novo_slot = datetime(dia.year, dia.month, dia.day, hora_h, hora_m)
+
+    if cadastro.agendamento == novo_slot:
+        raise HTTPException(status_code=400, detail="O atendimento já está nesse horário")
+
+    # O novo horário não pode estar ocupado por outro cadastro
+    ocupado = await db.scalar(
+        select(func.count(Cadastro.id)).where(
+            Cadastro.agendamento == novo_slot, Cadastro.id != cadastro_id
+        )
+    )
+    if ocupado:
+        raise HTTPException(status_code=409, detail="Já existe um atendimento nesse horário")
+
+    anterior = cadastro.agendamento
+    anterior_str = anterior.strftime("%d/%m/%Y às %H:%M") if anterior else "—"
+    novo_str = novo_slot.strftime("%d/%m/%Y às %H:%M")
+
+    cadastro.agendamento = novo_slot
+    cadastro.updated_at = datetime.now()
+    registrar_historico(
+        db,
+        cadastro_id=cadastro.id,
+        tipo="reagendado",
+        descricao=f"Atendimento reagendado de \"{anterior_str}\" para \"{novo_str}\"",
+        ator=current,
+        valor_anterior=anterior_str,
+        valor_novo=novo_str,
+    )
+    await db.commit()
+
+    email_enviado = False
+    if payload.notificar and cadastro.email:
+        email_enviado = await send_reagendamento_email(
+            cadastro.email, cadastro.nome_completo, novo_str,
+            cadastro.modalidade_atendimento or "",
+        )
+    return {"ok": True, "agendamento": novo_str, "email_enviado": email_enviado}
 
 
 @app.get("/admin/cadastro/{cadastro_id}/historico")

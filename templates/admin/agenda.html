@@ -191,6 +191,17 @@
     .badge-concluido { background: #e8f5e9; color: #2e7d32; }
     .link-cadastro { color: var(--verde-escuro); font-weight: 600; text-decoration: none; }
     .link-cadastro:hover { text-decoration: underline; }
+    .btn-reagendar {
+      margin-left: 10px; border: 1px solid var(--verde-principal); background: #fff;
+      color: var(--verde-escuro); border-radius: 6px; padding: 3px 10px;
+      font-size: 0.76rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-reagendar:hover { background: #e8f5e9; }
+    .btn-remover-slot {
+      border: none; background: transparent; color: #c62828; cursor: pointer;
+      font-size: 1.1rem; line-height: 1; padding: 2px 8px; border-radius: 6px;
+    }
+    .btn-remover-slot:hover { background: #ffebee; }
     #dia-loading { color: #aaa; font-size: 0.85rem; padding: 12px 0; }
     #dia-vazio { color: #aaa; font-size: 0.88rem; padding: 12px 0; }
 
@@ -275,6 +286,8 @@
           <input type="checkbox" id="chk-meus" style="cursor:pointer;">
           Somente meus
         </label>
+        <button class="btn-secondary" id="btn-encaixar" style="margin-left:auto;font-size:0.8rem;padding:6px 12px;"
+                title="Adicionar um horário avulso neste dia">+ Encaixar horário</button>
       </div>
 
       <div id="dia-resumo" class="dia-resumo" style="display:none;"></div>
@@ -407,6 +420,31 @@
   </main>
 </div>
 
+<!-- Modal de reagendamento -->
+<div id="modal-reagendar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:10px;padding:24px;max-width:380px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+    <h3 style="margin:0 0 4px;font-size:1.05rem;">Reagendar atendimento</h3>
+    <p id="reag-nome" style="margin:0 0 16px;font-size:0.85rem;color:#666;"></p>
+    <div class="fld" style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:4px;">Nova data</label>
+      <input type="date" id="reag-data" min="{{ hoje }}" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;">
+    </div>
+    <div class="fld" style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:4px;">Novo horário</label>
+      <input type="time" id="reag-hora" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;">
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;margin-bottom:18px;cursor:pointer;">
+      <input type="checkbox" id="reag-notificar" checked>
+      Avisar o cliente por e-mail
+    </label>
+    <div id="reag-erro" style="display:none;color:#c62828;font-size:0.82rem;margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-outline" id="reag-cancelar" style="font-size:0.85rem;padding:8px 16px;">Cancelar</button>
+      <button class="btn-secondary" id="reag-confirmar" style="font-size:0.85rem;padding:8px 16px;">Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const CURRENT_USER_ID = {{ current_user_id }};
 </script>
@@ -508,7 +546,7 @@ const CURRENT_USER_ID = {{ current_user_id }};
           '<td><strong>' + slot.horario + '</strong></td>' +
           '<td colspan="5" style="color:#ccc;">— livre —</td>' +
           '<td></td>' +
-          '<td></td>';
+          '<td><button class="btn-remover-slot" data-role="remover-slot" data-hora="' + slot.horario + '" title="Remover este horário do dia">&times;</button></td>';
       } else {
         const c = slot.cadastro;
         const modalidadeBadge = c.modalidade === 'online'
@@ -525,8 +563,10 @@ const CURRENT_USER_ID = {{ current_user_id }};
           '<td>' + modalidadeBadge + '</td>' +
           '<td>' + renderStatusSelect(c) + '</td>' +
           '<td>' + renderAtendenteCell(c) + '</td>' +
-          '<td>'
+          '<td style="white-space:nowrap;">'
             + '<a href="/admin/cadastro/' + c.id + '" class="link-cadastro">Ver</a>'
+            + '<button class="btn-reagendar" data-role="reagendar" data-cad-id="' + c.id + '"'
+              + ' data-nome="' + escHtml(c.nome) + '" data-hora="' + slot.horario + '">Reagendar</button>'
             + '<span class="row-feedback" data-feedback="' + c.id + '" style="display:none;"></span>'
           + '</td>';
       }
@@ -625,6 +665,31 @@ const CURRENT_USER_ID = {{ current_user_id }};
     if (!btn) return;
     const cadId = btn.dataset.cadId;
     const role = btn.dataset.role;
+
+    if (role === 'reagendar') {
+      abrirReagendar(cadId, btn.dataset.nome, btn.dataset.hora);
+      return;
+    }
+    if (role === 'remover-slot') {
+      const hora = btn.dataset.hora;
+      if (!confirm('Remover o horário ' + hora + ' deste dia? Ele deixará de ficar disponível para agendamento.')) return;
+      try {
+        const r = await fetch('/admin/api/agenda/slot/remover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: inputData.value, hora: hora }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || 'Erro');
+        }
+        carregar();
+      } catch (e) {
+        alert('Não foi possível remover: ' + e.message);
+      }
+      return;
+    }
+
     if (role !== 'puxar' && role !== 'liberar') return;
     const novo = role === 'puxar' ? CURRENT_USER_ID : null;
     try {
@@ -641,6 +706,86 @@ const CURRENT_USER_ID = {{ current_user_id }};
       carregar();
     } catch (e) {
       showFeedback(cadId, '✕ ' + e.message, true);
+    }
+  });
+
+  // ── Encaixar horário avulso ──────────────────────────────────────────────
+  document.getElementById('btn-encaixar').addEventListener('click', async () => {
+    if (!inputData.value) return;
+    const hora = prompt('Horário para encaixar neste dia (formato HH:MM, ex: 14:30):');
+    if (!hora) return;
+    if (!/^\d{2}:\d{2}$/.test(hora.trim())) {
+      alert('Horário inválido. Use o formato HH:MM, ex: 14:30.');
+      return;
+    }
+    try {
+      const r = await fetch('/admin/api/agenda/slot/adicionar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: inputData.value, hora: hora.trim() }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erro');
+      }
+      carregar();
+    } catch (e) {
+      alert('Não foi possível encaixar: ' + e.message);
+    }
+  });
+
+  // ── Modal de reagendamento ───────────────────────────────────────────────
+  const modal = document.getElementById('modal-reagendar');
+  const reagData = document.getElementById('reag-data');
+  const reagHora = document.getElementById('reag-hora');
+  const reagNotif = document.getElementById('reag-notificar');
+  const reagNome = document.getElementById('reag-nome');
+  const reagErro = document.getElementById('reag-erro');
+  let reagCadId = null;
+
+  function abrirReagendar(cadId, nome, horaAtual) {
+    reagCadId = cadId;
+    reagNome.textContent = nome || '';
+    reagData.value = inputData.value;
+    reagHora.value = horaAtual || '';
+    reagNotif.checked = true;
+    reagErro.style.display = 'none';
+    modal.style.display = 'flex';
+  }
+  function fecharReagendar() { modal.style.display = 'none'; reagCadId = null; }
+
+  document.getElementById('reag-cancelar').addEventListener('click', fecharReagendar);
+  modal.addEventListener('click', (ev) => { if (ev.target === modal) fecharReagendar(); });
+
+  document.getElementById('reag-confirmar').addEventListener('click', async () => {
+    if (!reagCadId) return;
+    if (!reagData.value || !reagHora.value) {
+      reagErro.textContent = 'Preencha a data e o horário.';
+      reagErro.style.display = 'block';
+      return;
+    }
+    try {
+      const r = await fetch('/admin/cadastro/' + reagCadId + '/reagendar', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: reagData.value,
+          hora: reagHora.value,
+          notificar: reagNotif.checked,
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erro');
+      }
+      const novaData = reagData.value;
+      fecharReagendar();
+      // Vai para o dia do novo agendamento e recarrega
+      inputData.value = novaData;
+      carregar();
+    } catch (e) {
+      reagErro.textContent = e.message;
+      reagErro.style.display = 'block';
     }
   });
 
