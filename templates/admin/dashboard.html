@@ -127,6 +127,7 @@
               {% if c.agendamento %}
               {{ c.agendamento.strftime('%d/%m %H:%M') }}
               <span style="color: var(--cinza-texto);">{{ '💻' if c.modalidade_atendimento == 'online' else '🏢' }}</span>
+              {% if c.reagendado %}<span title="Reagendado" style="background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:8px;padding:0 5px;font-size:0.62rem;font-weight:700;">R</span>{% endif %}
               {% else %}
               <span style="color: var(--cinza-texto);">—</span>
               {% endif %}

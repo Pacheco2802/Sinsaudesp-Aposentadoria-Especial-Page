@@ -189,6 +189,7 @@
     .badge-presencial { background: #f3e5f5; color: #6a1b9a; border-radius: 10px; padding: 2px 9px; font-size: 0.75rem; font-weight: 600; }
     .badge-status { border-radius: 10px; padding: 2px 9px; font-size: 0.75rem; font-weight: 600; background: #f5f5f5; color: #555; }
     .badge-concluido { background: #e8f5e9; color: #2e7d32; }
+    .badge-reagendado { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; border-radius: 10px; padding: 1px 8px; font-size: 0.68rem; font-weight: 700; margin-left: 6px; white-space: nowrap; }
     .link-cadastro { color: var(--verde-escuro); font-weight: 600; text-decoration: none; }
     .link-cadastro:hover { text-decoration: underline; }
     .btn-reagendar {
@@ -431,7 +432,10 @@
     </div>
     <div class="fld" style="margin-bottom:12px;">
       <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:4px;">Novo horário</label>
-      <input type="time" id="reag-hora" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;">
+      <select id="reag-hora" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;background:#fff;">
+        <option value="">Selecione uma data primeiro…</option>
+      </select>
+      <p id="reag-hora-aviso" style="margin:4px 0 0;font-size:0.75rem;color:#888;"></p>
     </div>
     <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;margin-bottom:18px;cursor:pointer;">
       <input type="checkbox" id="reag-notificar" checked>
@@ -441,6 +445,24 @@
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button class="btn-outline" id="reag-cancelar" style="font-size:0.85rem;padding:8px 16px;">Cancelar</button>
       <button class="btn-secondary" id="reag-confirmar" style="font-size:0.85rem;padding:8px 16px;">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de encaixe de horário -->
+<div id="modal-encaixar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:10px;padding:24px;max-width:360px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+    <h3 style="margin:0 0 4px;font-size:1.05rem;">Encaixar horário avulso</h3>
+    <p id="enc-dia" style="margin:0 0 16px;font-size:0.85rem;color:#666;"></p>
+    <div class="fld" style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:4px;">Horário</label>
+      <input type="time" id="enc-hora" step="300" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;">
+      <p style="margin:4px 0 0;font-size:0.75rem;color:#888;">Cria um horário extra fora da grade padrão deste dia.</p>
+    </div>
+    <div id="enc-erro" style="display:none;color:#c62828;font-size:0.82rem;margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-outline" id="enc-cancelar" style="font-size:0.85rem;padding:8px 16px;">Cancelar</button>
+      <button class="btn-secondary" id="enc-confirmar" style="font-size:0.85rem;padding:8px 16px;">Encaixar</button>
     </div>
   </div>
 </div>
@@ -555,9 +577,13 @@ const CURRENT_USER_ID = {{ current_user_id }};
             ? '<span class="badge-presencial">Presencial</span>'
             : c.modalidade;
 
+        const reagBadge = c.reagendado
+          ? ' <span class="badge-reagendado" title="Este atendimento foi reagendado">Reagendado</span>'
+          : '';
+
         tr.innerHTML =
           '<td><strong>' + slot.horario + '</strong></td>' +
-          '<td>' + escHtml(c.nome) + '</td>' +
+          '<td>' + escHtml(c.nome) + reagBadge + '</td>' +
           '<td style="white-space:nowrap;">' + escHtml(c.cpf) + '</td>' +
           '<td>' + escHtml(c.telefone) + '</td>' +
           '<td>' + modalidadeBadge + '</td>' +
@@ -710,27 +736,47 @@ const CURRENT_USER_ID = {{ current_user_id }};
   });
 
   // ── Encaixar horário avulso ──────────────────────────────────────────────
-  document.getElementById('btn-encaixar').addEventListener('click', async () => {
+  const modalEnc = document.getElementById('modal-encaixar');
+  const encDia = document.getElementById('enc-dia');
+  const encHora = document.getElementById('enc-hora');
+  const encErro = document.getElementById('enc-erro');
+
+  function fecharEncaixar() { modalEnc.style.display = 'none'; }
+
+  document.getElementById('btn-encaixar').addEventListener('click', () => {
     if (!inputData.value) return;
-    const hora = prompt('Horário para encaixar neste dia (formato HH:MM, ex: 14:30):');
-    if (!hora) return;
-    if (!/^\d{2}:\d{2}$/.test(hora.trim())) {
-      alert('Horário inválido. Use o formato HH:MM, ex: 14:30.');
+    encDia.textContent = 'Dia ' + formatarData(inputData.value);
+    encHora.value = '';
+    encErro.style.display = 'none';
+    modalEnc.style.display = 'flex';
+    setTimeout(() => encHora.focus(), 50);
+  });
+
+  document.getElementById('enc-cancelar').addEventListener('click', fecharEncaixar);
+  modalEnc.addEventListener('click', (ev) => { if (ev.target === modalEnc) fecharEncaixar(); });
+
+  document.getElementById('enc-confirmar').addEventListener('click', async () => {
+    const hora = (encHora.value || '').trim();
+    if (!/^\d{2}:\d{2}$/.test(hora)) {
+      encErro.textContent = 'Informe um horário válido.';
+      encErro.style.display = 'block';
       return;
     }
     try {
       const r = await fetch('/admin/api/agenda/slot/adicionar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: inputData.value, hora: hora.trim() }),
+        body: JSON.stringify({ data: inputData.value, hora: hora }),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
         throw new Error(err.detail || 'Erro');
       }
+      fecharEncaixar();
       carregar();
     } catch (e) {
-      alert('Não foi possível encaixar: ' + e.message);
+      encErro.textContent = e.message;
+      encErro.style.display = 'block';
     }
   });
 
@@ -741,19 +787,75 @@ const CURRENT_USER_ID = {{ current_user_id }};
   const reagNotif = document.getElementById('reag-notificar');
   const reagNome = document.getElementById('reag-nome');
   const reagErro = document.getElementById('reag-erro');
+  const reagAviso = document.getElementById('reag-hora-aviso');
   let reagCadId = null;
+  let reagDataAtual = null;  // data do agendamento atual (para marcar "atual")
+  let reagHoraAtual = null;  // hora do agendamento atual
 
   function abrirReagendar(cadId, nome, horaAtual) {
     reagCadId = cadId;
+    reagDataAtual = inputData.value;
+    reagHoraAtual = horaAtual || null;
     reagNome.textContent = nome || '';
     reagData.value = inputData.value;
-    reagHora.value = horaAtual || '';
     reagNotif.checked = true;
     reagErro.style.display = 'none';
     modal.style.display = 'flex';
+    carregarHorariosReag();
   }
   function fecharReagendar() { modal.style.display = 'none'; reagCadId = null; }
 
+  // Carrega os horários disponíveis da data escolhida e popula o <select>
+  async function carregarHorariosReag() {
+    const data = reagData.value;
+    reagHora.innerHTML = '<option value="">Carregando…</option>';
+    reagHora.disabled = true;
+    reagAviso.textContent = '';
+    if (!data) { reagHora.innerHTML = '<option value="">Selecione uma data…</option>'; return; }
+
+    let d;
+    try {
+      const resp = await fetch('/admin/api/agenda/dia?data=' + data);
+      if (!resp.ok) throw new Error();
+      d = await resp.json();
+    } catch (e) {
+      reagHora.innerHTML = '<option value="">—</option>';
+      reagAviso.textContent = 'Não foi possível carregar os horários dessa data.';
+      return;
+    }
+
+    if (d.bloqueado) { reagAviso.textContent = 'Dia bloqueado' + (d.motivo_bloqueio ? ': ' + d.motivo_bloqueio : '') + '.'; }
+    else if (d.fim_de_semana) { reagAviso.textContent = 'Atenção: este dia é fim de semana.'; }
+
+    const mesmaData = data === reagDataAtual;
+    let html = '';
+    let livres = 0;
+    (d.horarios || []).forEach(s => {
+      const ehAtual = mesmaData && s.horario === reagHoraAtual;
+      const ocupadoPorEste = !s.livre && s.cadastro && String(s.cadastro.id) === String(reagCadId);
+      if (s.livre || ocupadoPorEste || ehAtual) {
+        const sel = ehAtual ? ' selected' : '';
+        const rot = (ehAtual || ocupadoPorEste) ? s.horario + ' (atual)' : s.horario;
+        html += '<option value="' + s.horario + '"' + sel + '>' + rot + '</option>';
+        livres++;
+      } else {
+        const nome = s.cadastro ? ' — ' + s.cadastro.nome : '';
+        html += '<option value="' + s.horario + '" disabled>' + s.horario + ' (ocupado' + escHtml(nome) + ')</option>';
+      }
+    });
+
+    if (livres === 0) {
+      reagHora.innerHTML = '<option value="">Sem horários livres nesta data</option>';
+      reagHora.disabled = true;
+      if (!reagAviso.textContent) reagAviso.textContent = 'Nenhum horário disponível — use "Encaixar horário" na agenda do dia.';
+      return;
+    }
+    reagHora.innerHTML = html;
+    reagHora.disabled = false;
+    if (!reagAviso.textContent) reagAviso.textContent = livres + ' horário(s) disponível(is).';
+  }
+
+  reagData.addEventListener('change', carregarHorariosReag);
   document.getElementById('reag-cancelar').addEventListener('click', fecharReagendar);
   modal.addEventListener('click', (ev) => { if (ev.target === modal) fecharReagendar(); });
 

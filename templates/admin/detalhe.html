@@ -398,7 +398,7 @@
         {% if cadastro.agendamento %}
         <div class="info-row">
           <span class="info-label">Data e horário</span>
-          <span class="info-value"><strong id="reag-atual">{{ cadastro.agendamento.strftime('%d/%m/%Y às %H:%M') }}</strong></span>
+          <span class="info-value"><strong id="reag-atual">{{ cadastro.agendamento.strftime('%d/%m/%Y às %H:%M') }}</strong>{% if cadastro.reagendado %} <span id="reag-badge" style="background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:10px;padding:1px 8px;font-size:0.7rem;font-weight:700;white-space:nowrap;">Reagendado</span>{% endif %}</span>
         </div>
         <div class="info-row">
           <span class="info-label">Modalidade</span>
@@ -412,7 +412,7 @@
 
         <button type="button" class="btn-outline" id="btn-toggle-reagendar"
                 style="font-size:0.8rem;padding:6px 14px;margin-top:8px;"
-                onclick="document.getElementById('reag-box').style.display='block';this.style.display='none';">
+                onclick="abrirReagBox();">
           📅 {{ 'Reagendar' if cadastro.agendamento else 'Agendar' }}
         </button>
         <div id="reag-box" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--cinza-borda);border-radius:8px;background:#fafafa;max-width:320px;">
@@ -422,7 +422,10 @@
           </div>
           <div style="margin-bottom:8px;">
             <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:3px;">Novo horário</label>
-            <input type="time" id="reag-hora" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;">
+            <select id="reag-hora" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:6px;background:#fff;">
+              <option value="">Selecione uma data primeiro…</option>
+            </select>
+            <p id="reag-hora-aviso" style="margin:3px 0 0;font-size:0.72rem;color:#888;"></p>
           </div>
           <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;margin-bottom:10px;cursor:pointer;">
             <input type="checkbox" id="reag-notificar" checked> Avisar o cliente por e-mail
@@ -435,27 +438,99 @@
           </div>
         </div>
         <script>
-        document.getElementById('reag-confirmar').addEventListener('click', async function () {
-          const data = document.getElementById('reag-data').value;
-          const hora = document.getElementById('reag-hora').value;
-          const notificar = document.getElementById('reag-notificar').checked;
-          const erro = document.getElementById('reag-erro');
-          if (!data || !hora) { erro.textContent = 'Preencha data e horário.'; erro.style.display = 'block'; return; }
-          try {
-            const r = await fetch('/admin/cadastro/{{ cadastro.id }}/reagendar', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ data: data, hora: hora, notificar: notificar }),
-            });
-            if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || 'Erro'); }
-            const d = await r.json();
-            document.getElementById('reag-atual').innerHTML = '<strong>' + d.agendamento + '</strong>'
-              + (d.email_enviado ? ' <span style="color:#2e7d32;font-size:0.8rem;">✓ cliente avisado</span>' : '');
-            document.getElementById('reag-box').style.display = 'none';
-          } catch (e) {
-            erro.textContent = e.message; erro.style.display = 'block';
+        (function () {
+          const reagData = document.getElementById('reag-data');
+          const reagHora = document.getElementById('reag-hora');
+          const reagAviso = document.getElementById('reag-hora-aviso');
+          // Agendamento atual (para marcar como "atual" ao reagendar na mesma data)
+          const AG_DATA_ATUAL = '{{ cadastro.agendamento.strftime("%Y-%m-%d") if cadastro.agendamento else "" }}';
+          const AG_HORA_ATUAL = '{{ cadastro.agendamento.strftime("%H:%M") if cadastro.agendamento else "" }}';
+
+          function escHtml(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
           }
-        });
+
+          window.abrirReagBox = function () {
+            document.getElementById('reag-box').style.display = 'block';
+            document.getElementById('btn-toggle-reagendar').style.display = 'none';
+            if (!reagData.value) reagData.value = AG_DATA_ATUAL || '';
+            carregarHorarios();
+          };
+
+          async function carregarHorarios() {
+            const data = reagData.value;
+            reagHora.innerHTML = '<option value="">Carregando…</option>';
+            reagHora.disabled = true;
+            reagAviso.textContent = '';
+            if (!data) { reagHora.innerHTML = '<option value="">Selecione uma data…</option>'; return; }
+
+            let d;
+            try {
+              const resp = await fetch('/admin/api/agenda/dia?data=' + data);
+              if (!resp.ok) throw new Error();
+              d = await resp.json();
+            } catch (e) {
+              reagHora.innerHTML = '<option value="">—</option>';
+              reagAviso.textContent = 'Não foi possível carregar os horários dessa data.';
+              return;
+            }
+
+            if (d.bloqueado) { reagAviso.textContent = 'Dia bloqueado' + (d.motivo_bloqueio ? ': ' + d.motivo_bloqueio : '') + '.'; }
+            else if (d.fim_de_semana) { reagAviso.textContent = 'Atenção: este dia é fim de semana.'; }
+
+            const mesmaData = data === AG_DATA_ATUAL;
+            let html = '', livres = 0;
+            (d.horarios || []).forEach(s => {
+              const ehAtual = mesmaData && s.horario === AG_HORA_ATUAL;
+              const ocupadoPorEste = !s.livre && s.cadastro && String(s.cadastro.id) === '{{ cadastro.id }}';
+              if (s.livre || ocupadoPorEste || ehAtual) {
+                const sel = ehAtual ? ' selected' : '';
+                const rot = (ehAtual || ocupadoPorEste) ? s.horario + ' (atual)' : s.horario;
+                html += '<option value="' + s.horario + '"' + sel + '>' + rot + '</option>';
+                livres++;
+              } else {
+                const nome = s.cadastro ? ' — ' + s.cadastro.nome : '';
+                html += '<option value="' + s.horario + '" disabled>' + s.horario + ' (ocupado' + escHtml(nome) + ')</option>';
+              }
+            });
+
+            if (livres === 0) {
+              reagHora.innerHTML = '<option value="">Sem horários livres nesta data</option>';
+              reagHora.disabled = true;
+              if (!reagAviso.textContent) reagAviso.textContent = 'Nenhum horário disponível nesta data.';
+              return;
+            }
+            reagHora.innerHTML = html;
+            reagHora.disabled = false;
+            if (!reagAviso.textContent) reagAviso.textContent = livres + ' horário(s) disponível(is).';
+          }
+
+          reagData.addEventListener('change', carregarHorarios);
+
+          document.getElementById('reag-confirmar').addEventListener('click', async function () {
+            const data = reagData.value;
+            const hora = reagHora.value;
+            const notificar = document.getElementById('reag-notificar').checked;
+            const erro = document.getElementById('reag-erro');
+            if (!data || !hora) { erro.textContent = 'Selecione a data e o horário.'; erro.style.display = 'block'; return; }
+            try {
+              const r = await fetch('/admin/cadastro/{{ cadastro.id }}/reagendar', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: data, hora: hora, notificar: notificar }),
+              });
+              if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || 'Erro'); }
+              const d = await r.json();
+              document.getElementById('reag-atual').innerHTML = '<strong>' + d.agendamento + '</strong>'
+                + ' <span style="background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:10px;padding:1px 8px;font-size:0.7rem;font-weight:700;white-space:nowrap;">Reagendado</span>'
+                + (d.email_enviado ? ' <span style="color:#2e7d32;font-size:0.8rem;">✓ cliente avisado</span>' : '');
+              document.getElementById('reag-box').style.display = 'none';
+              document.getElementById('btn-toggle-reagendar').style.display = 'inline-block';
+            } catch (e) {
+              erro.textContent = e.message; erro.style.display = 'block';
+            }
+          });
+        })();
         </script>
         <div class="info-row">
           <span class="info-label">Análise de estabilidade</span>

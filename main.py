@@ -211,6 +211,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS analise_estabilidade BOOLEAN NOT NULL DEFAULT false",
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS modalidade_atendimento VARCHAR(20)",
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS agendamento TIMESTAMP",
+            "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS reagendado BOOLEAN NOT NULL DEFAULT false",
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS etapa2_token VARCHAR(64)",
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS etapa2_liberada_em TIMESTAMP",
             "ALTER TABLE cadastros ADD COLUMN IF NOT EXISTS etapa2_concluida_em TIMESTAMP",
@@ -1493,6 +1494,7 @@ async def admin_agenda_dia(
                 "etapa2_concluida": c.etapa2_concluida_em is not None,
                 "atendente_id": c.atendente_id,
                 "atendente_nome": c.atendente.nome if c.atendente else None,
+                "reagendado": c.reagendado,
             } if c else None,
         })
 
@@ -1511,6 +1513,7 @@ async def admin_agenda_dia(
                 "etapa2_concluida": c.etapa2_concluida_em is not None,
                 "atendente_id": c.atendente_id,
                 "atendente_nome": c.atendente.nome if c.atendente else None,
+                "reagendado": c.reagendado,
             },
         }
         for c in cadastros
@@ -1857,6 +1860,7 @@ async def admin_reagendar(
     novo_str = novo_slot.strftime("%d/%m/%Y às %H:%M")
 
     cadastro.agendamento = novo_slot
+    cadastro.reagendado = True
     cadastro.updated_at = datetime.now()
     registrar_historico(
         db,

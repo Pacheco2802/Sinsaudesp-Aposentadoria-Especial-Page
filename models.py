@@ -42,6 +42,7 @@ class Cadastro(Base):
     analise_estabilidade: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     modalidade_atendimento: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # online | presencial
     agendamento: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    reagendado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
     # Etapa 2 (documentação completa + procuração, liberada após o atendimento)
     etapa2_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True, index=True)
